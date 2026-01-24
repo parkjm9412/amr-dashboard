@@ -1,8 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import mqtt from "mqtt";
 import skhynixLogo from "./assets/skhynix-logo.jpg";
 
-type TabKey = "home" | "robot" | "job" | "battery" | "map" | "wireless" | "api";
+type TabKey =
+  | "home"
+  | "robot"
+  | "job"
+  | "battery"
+  | "map"
+  | "wireless"
+  | "api"
+  | "admin"
+  | "logs"
+  | "control";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 
@@ -17,6 +27,30 @@ type RolePermissions = {
 };
 
 type PermissionsConfig = Record<Exclude<UserRole, "admin">, RolePermissions>;
+
+type Account = {
+  id: string;
+  password: string;
+  role: Exclude<UserRole, "viewer">;
+};
+
+type LogEntry = {
+  id: string;
+  accountId: string;
+  type: "login" | "action";
+  message: string;
+  at: string;
+};
+
+type ControlAction =
+  | "start"
+  | "stop"
+  | "pause"
+  | "resume"
+  | "return_charge"
+  | "set_speed_limit"
+  | "set_destination"
+  | "manual_move";
 
 type ConnectionState = {
   status: ConnectionStatus;
@@ -153,6 +187,9 @@ const I18N = {
     "tab.map": "지도",
     "tab.wireless": "무선 진단",
     "tab.api": "API & 다운로드",
+    "tab.admin": "관리자",
+    "tab.logs": "로그",
+    "tab.control": "AMR 조작",
     "tabDesc.home": "운영 요약 대시보드",
     "tabDesc.robot": "개별/전체 상태",
     "tabDesc.job": "작업 이력 분석",
@@ -160,6 +197,9 @@ const I18N = {
     "tabDesc.map": "지도·밀도·품질",
     "tabDesc.wireless": "신호·핑·로밍",
     "tabDesc.api": "API/내보내기",
+    "tabDesc.admin": "권한/계정",
+    "tabDesc.logs": "로그 확인",
+    "tabDesc.control": "조작 모드",
     "status.system": "시스템 상태",
     "status.normal": "정상 운영",
     "status.lastCheck": "마지막 점검 2시간 전",
@@ -178,6 +218,15 @@ const I18N = {
     "auth.logout": "로그아웃",
     "auth.selectAccount": "계정 선택",
     "auth.confirmLogin": "로그인",
+    "auth.roleLoginTitle": "권한 로그인",
+    "auth.operatorLabel": "작업자 계정",
+    "auth.adminLabel": "관리자 계정",
+    "auth.userId": "아이디",
+    "auth.password": "비밀번호",
+    "auth.userIdPlaceholder": "계정 ID 입력",
+    "auth.passwordPlaceholder": "비밀번호 입력",
+    "auth.close": "닫기",
+    "auth.invalidCredentials": "아이디 또는 비밀번호가 올바르지 않습니다.",
     "label.user": "사용자",
     "label.license": "라이선스",
     "label.licenseOk": "OK",
@@ -213,11 +262,30 @@ const I18N = {
     "section.downloadNote": "정보 영역 / 전체 그래프 다운로드 지원",
     "section.admin": "관리자 메뉴",
     "section.adminHint": "권한 설정",
+    "section.control": "AMR 조작",
+    "section.controlHint": "시작/정지/목적지/수동",
     "admin.permissions": "권한",
     "admin.control": "조작 가능",
     "admin.download": "다운로드",
     "admin.noPermission": "권한 없음",
     "admin.rolePermissionSuffix": "권한",
+    "admin.save": "저장",
+    "admin.saveHint": "변경 후 저장을 눌러야 적용됩니다.",
+    "admin.accounts": "계정 등록",
+    "admin.accountId": "계정 ID",
+    "admin.accountPassword": "비밀번호",
+    "admin.accountRole": "권한",
+    "admin.addAccount": "계정 추가",
+    "admin.deleteAccount": "삭제",
+    "admin.accountHint": "계정별 권한을 설정합니다.",
+    "admin.logs": "로그",
+    "admin.logFilter": "계정 필터",
+    "admin.logType": "유형",
+    "admin.logTime": "시간",
+    "admin.logMessage": "내용",
+    "admin.logTypeLogin": "로그인",
+    "admin.logTypeAction": "작업",
+    "admin.logEmpty": "로그가 없습니다.",
     "admin.note": "관리자 권한은 고정이며, 변경 사항은 브라우저에 저장됩니다.",
     "metric.uptime": "가동률",
     "metric.uptimeSub": "최근 24시간 평균",
@@ -236,6 +304,21 @@ const I18N = {
     "metric.idle": "대기",
     "metric.charging": "충전 중",
     "metric.immediateCheck": "즉시 확인",
+    "control.start": "시작",
+    "control.stop": "정지",
+    "control.pause": "일시정지",
+    "control.resume": "재개",
+    "control.returnCharge": "충전 복귀",
+    "control.speedLimit": "속도 제한",
+    "control.setSpeed": "속도 적용",
+    "control.destination": "목적지",
+    "control.sendDestination": "목적지 전송",
+    "control.manual": "수동 조작",
+    "control.forward": "전진",
+    "control.backward": "후진",
+    "control.left": "좌측",
+    "control.right": "우측",
+    "control.stopMove": "정지",
     "placeholder.summary": "(차트) 작업량·가동률·지연 추이",
     "placeholder.robotDist": "(차트) 로봇 상태 분포",
     "placeholder.batteryDist": "(차트) 배터리 분포",
@@ -290,6 +373,9 @@ const I18N = {
     "tab.map": "Map",
     "tab.wireless": "Wireless",
     "tab.api": "API & Download",
+    "tab.admin": "Admin",
+    "tab.logs": "Logs",
+    "tab.control": "AMR Control",
     "tabDesc.home": "Operations summary dashboard",
     "tabDesc.robot": "Individual & fleet status",
     "tabDesc.job": "Job history analysis",
@@ -297,6 +383,9 @@ const I18N = {
     "tabDesc.map": "Map, density, quality",
     "tabDesc.wireless": "Signal, ping, roaming",
     "tabDesc.api": "API / export",
+    "tabDesc.admin": "Permissions / accounts",
+    "tabDesc.logs": "View logs",
+    "tabDesc.control": "Control mode",
     "status.system": "System status",
     "status.normal": "Normal operation",
     "status.lastCheck": "Last check 2 hours ago",
@@ -315,6 +404,15 @@ const I18N = {
     "auth.logout": "Logout",
     "auth.selectAccount": "Select account",
     "auth.confirmLogin": "Login",
+    "auth.roleLoginTitle": "Role login",
+    "auth.operatorLabel": "Operator account",
+    "auth.adminLabel": "Admin account",
+    "auth.userId": "User ID",
+    "auth.password": "Password",
+    "auth.userIdPlaceholder": "Enter account ID",
+    "auth.passwordPlaceholder": "Enter password",
+    "auth.close": "Close",
+    "auth.invalidCredentials": "Invalid ID or password.",
     "label.user": "User",
     "label.license": "License",
     "label.licenseOk": "OK",
@@ -350,11 +448,30 @@ const I18N = {
     "section.downloadNote": "Download support for information area / all graphs",
     "section.admin": "Admin menu",
     "section.adminHint": "Permission settings",
+    "section.control": "AMR Control",
+    "section.controlHint": "Start / Stop / Destination / Manual",
     "admin.permissions": "Permissions",
     "admin.control": "Allow control",
     "admin.download": "Download",
     "admin.noPermission": "No access",
     "admin.rolePermissionSuffix": "Permissions",
+    "admin.save": "Save",
+    "admin.saveHint": "Changes apply after clicking Save.",
+    "admin.accounts": "Account registration",
+    "admin.accountId": "Account ID",
+    "admin.accountPassword": "Password",
+    "admin.accountRole": "Role",
+    "admin.addAccount": "Add account",
+    "admin.deleteAccount": "Delete",
+    "admin.accountHint": "Set permissions per account.",
+    "admin.logs": "Logs",
+    "admin.logFilter": "Account filter",
+    "admin.logType": "Type",
+    "admin.logTime": "Time",
+    "admin.logMessage": "Message",
+    "admin.logTypeLogin": "Login",
+    "admin.logTypeAction": "Action",
+    "admin.logEmpty": "No logs available.",
     "admin.note": "Admin permissions are fixed. Changes are saved in the browser.",
     "metric.uptime": "Uptime",
     "metric.uptimeSub": "Last 24h average",
@@ -373,6 +490,21 @@ const I18N = {
     "metric.idle": "Idle",
     "metric.charging": "Charging",
     "metric.immediateCheck": "Immediate action",
+    "control.start": "Start",
+    "control.stop": "Stop",
+    "control.pause": "Pause",
+    "control.resume": "Resume",
+    "control.returnCharge": "Return to charge",
+    "control.speedLimit": "Speed limit",
+    "control.setSpeed": "Apply speed",
+    "control.destination": "Destination",
+    "control.sendDestination": "Send destination",
+    "control.manual": "Manual control",
+    "control.forward": "Forward",
+    "control.backward": "Backward",
+    "control.left": "Left",
+    "control.right": "Right",
+    "control.stopMove": "Stop",
     "placeholder.summary": "(Chart) workload, uptime, latency",
     "placeholder.robotDist": "(Chart) robot state distribution",
     "placeholder.batteryDist": "(Chart) battery distribution",
@@ -473,6 +605,9 @@ const TAB_OPTIONS: Array<{ key: TabKey; labelKey: I18nKey; descKey?: I18nKey }> 
   { key: "map", labelKey: "tab.map", descKey: "tabDesc.map" },
   { key: "wireless", labelKey: "tab.wireless", descKey: "tabDesc.wireless" },
   { key: "api", labelKey: "tab.api", descKey: "tabDesc.api" },
+  { key: "admin", labelKey: "tab.admin", descKey: "tabDesc.admin" },
+  { key: "logs", labelKey: "tab.logs", descKey: "tabDesc.logs" },
+  { key: "control", labelKey: "tab.control", descKey: "tabDesc.control" },
 ];
 
 const ROLE_LABELS: Record<Locale, Record<UserRole, string>> = {
@@ -489,6 +624,12 @@ const ROLE_LABELS: Record<Locale, Record<UserRole, string>> = {
 };
 
 const PERMISSIONS_STORAGE_KEY = "amr-dashboard-permissions";
+const ACCOUNTS_STORAGE_KEY = "amr-dashboard-accounts";
+const LOGS_STORAGE_KEY = "amr-dashboard-logs";
+
+const DEFAULT_ACCOUNTS: Account[] = [
+  { id: "admin", password: "admin", role: "admin" },
+];
 
 const DEFAULT_ROLE_PERMISSIONS: PermissionsConfig = {
   viewer: {
@@ -497,14 +638,14 @@ const DEFAULT_ROLE_PERMISSIONS: PermissionsConfig = {
     canDownload: false,
   },
   operator: {
-    tabs: ["home", "robot", "job", "battery", "map", "wireless"],
+    tabs: ["home", "robot", "job", "battery", "map", "wireless", "control"],
     canControl: true,
     canDownload: false,
   },
 };
 
 const ADMIN_PERMISSIONS: RolePermissions = {
-  tabs: ["home", "robot", "job", "battery", "map", "wireless", "api"],
+  tabs: ["home", "robot", "job", "battery", "map", "wireless", "api", "admin", "logs", "control"],
   canControl: true,
   canDownload: true,
 };
@@ -525,6 +666,41 @@ function getInitialPermissions(): PermissionsConfig {
     };
   } catch {
     return DEFAULT_ROLE_PERMISSIONS;
+  }
+}
+
+function getInitialAccounts(): Account[] {
+  if (typeof window === "undefined") {
+    return DEFAULT_ACCOUNTS;
+  }
+  const stored = window.localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+  if (!stored) {
+    return DEFAULT_ACCOUNTS;
+  }
+  try {
+    const parsed = JSON.parse(stored) as Account[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return DEFAULT_ACCOUNTS;
+  } catch {
+    return DEFAULT_ACCOUNTS;
+  }
+}
+
+function getInitialLogs(): LogEntry[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  const stored = window.localStorage.getItem(LOGS_STORAGE_KEY);
+  if (!stored) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(stored) as LogEntry[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
@@ -633,12 +809,12 @@ function Sidebar({
   const items = TAB_OPTIONS.filter((item) => permissions.tabs.includes(item.key));
 
   return (
-    <aside className="hidden min-h-screen w-64 flex-col border-r border-[#e5e7eb] bg-white lg:flex">
-      <div className="px-6 py-6">
+    <aside className="hidden min-h-screen w-60 flex-col border-r border-[#e5e7eb] bg-white lg:flex">
+      <div className="px-6 py-5">
         <div className="flex items-center justify-between">
-          <img src={skhynixLogo} alt="SK hynix" className="h-12 w-auto" />
+          <img src={skhynixLogo} alt="SK hynix" className="h-10 w-auto" />
         </div>
-        <div className="mt-4 text-lg font-semibold text-[#111827]">AMR Control</div>
+        <div className="mt-3 text-base font-semibold text-[#111827]">AMR Control</div>
         <div className="mt-1 text-xs text-[#6b7280]">Plant Ops Command</div>
       </div>
 
@@ -650,7 +826,7 @@ function Sidebar({
               key={item.key}
               onClick={() => setTab(item.key)}
               className={cn(
-                "flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition",
+                "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition",
                 tab === item.key
                   ? "bg-[#fff5f5] text-[#9b1c1c] ring-1 ring-[#f1c4c0]"
                   : "text-[#374151] hover:bg-[#f3f4f6]"
@@ -664,9 +840,11 @@ function Sidebar({
                     tab === item.key ? "bg-[#ef3124]" : "bg-[#d1d5db]"
                   )}
                 />
-                <span className="flex-1">
-                  <div className="text-sm font-medium">{t(item.labelKey)}</div>
-                  {item.descKey ? <div className="text-xs text-[#6b7280]">{t(item.descKey)}</div> : null}
+                <span className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{t(item.labelKey)}</div>
+                  {item.descKey ? (
+                    <div className="text-xs text-[#6b7280] truncate">{t(item.descKey)}</div>
+                  ) : null}
                 </span>
               </>
             </button>
@@ -674,7 +852,7 @@ function Sidebar({
         </div>
       </div>
 
-      <div className="mt-auto px-6 py-6">
+      <div className="mt-auto px-6 py-5">
         <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
           <div className="text-xs text-[#6b7280]">{t("status.system")}</div>
           <div className="mt-2 flex items-center justify-between text-sm text-[#111827]">
@@ -701,9 +879,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-2">
+    <section className="space-y-1.5">
       <div className="flex items-end justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#111827]">
           <span className="h-2 w-2 rounded-full bg-[#ef3124]" />
           {title}
         </div>
@@ -735,20 +913,24 @@ function MetricCard({
         : "ring-0";
 
   return (
-    <div className={cn("rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-sm", ring)}>
-      <div className="text-xs text-[#6b7280]">{label}</div>
+    <div className={cn("rounded-xl border border-[#e5e7eb] bg-white p-2.5 shadow-sm", ring)}>
+      <div className="text-[11px] text-[#6b7280]">{label}</div>
       <div className="mt-1 flex items-baseline gap-1">
-        <div className="text-2xl font-semibold text-[#111827]">{value}</div>
-        {unit ? <div className="text-sm text-[#6b7280]">{unit}</div> : null}
+        <div className="text-xl font-semibold text-[#111827]">{value}</div>
+        {unit ? <div className="text-xs text-[#6b7280]">{unit}</div> : null}
       </div>
-      {sub ? <div className="mt-1 text-xs text-[#6b7280]">{sub}</div> : <div className="mt-1 h-4" />}
+      {sub ? (
+        <div className="mt-0.5 text-[11px] text-[#6b7280]">{sub}</div>
+      ) : (
+        <div className="mt-1 h-3" />
+      )}
     </div>
   );
 }
 
 function Placeholder({ label }: { label: string }) {
   return (
-    <div className="flex h-[240px] 2xl:h-[300px] 3xl:h-[340px] items-center justify-center rounded-xl bg-[#f3f4f6] text-sm text-[#6b7280]">
+    <div className="flex h-[160px] 2xl:h-[190px] 3xl:h-[210px] items-center justify-center rounded-xl bg-[#f3f4f6] text-xs text-[#6b7280]">
       {label}
     </div>
   );
@@ -764,6 +946,14 @@ function TopBar({
   isLoggedIn,
   loginRole,
   setLoginRole,
+  accounts,
+  currentUserId,
+  selectedRobot,
+  setSelectedRobot,
+  selectedZone,
+  setSelectedZone,
+  robotOptions,
+  zoneOptions,
   onLogin,
   onLogout,
   locale,
@@ -779,13 +969,57 @@ function TopBar({
   isLoggedIn: boolean;
   loginRole: Exclude<UserRole, "viewer">;
   setLoginRole: (r: Exclude<UserRole, "viewer">) => void;
-  onLogin: (r: Exclude<UserRole, "viewer">) => void;
+  accounts: Account[];
+  currentUserId: string | null;
+  selectedRobot: string;
+  setSelectedRobot: (id: string) => void;
+  selectedZone: string;
+  setSelectedZone: (zone: string) => void;
+  robotOptions: string[];
+  zoneOptions: string[];
+  onLogin: (r: Exclude<UserRole, "viewer">, id: string) => void;
   onLogout: () => void;
   locale: Locale;
   setLocale: (next: Locale) => void;
   t: Translator;
 }) {
   const [loginOpen, setLoginOpen] = useState(false);
+  const [loginId, setLoginId] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const loginContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (loginOpen) {
+      setLoginId("");
+      setLoginPassword("");
+      setLoginError("");
+    }
+  }, [loginOpen, loginRole]);
+
+  useEffect(() => {
+    if (!loginOpen) {
+      return;
+    }
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (loginContainerRef.current && target && loginContainerRef.current.contains(target)) {
+        return;
+      }
+      setLoginOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setLoginOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [loginOpen]);
 
   const visibleTabs = useMemo(
     () => TAB_OPTIONS.filter((item) => permissions.tabs.includes(item.key)),
@@ -811,155 +1045,235 @@ function TopBar({
           : "OFF";
 
   const latencyLabel = connection.latencyMs !== null ? `${connection.latencyMs}ms` : "-";
+  const isLoginValid = loginId.trim().length > 0 && loginPassword.trim().length > 0;
+  const handleLoginSubmit = () => {
+    if (!isLoginValid) {
+      return;
+    }
+    const matched = accounts.find(
+      (account) =>
+        account.id === loginId.trim() && account.password === loginPassword
+    );
+    if (!matched) {
+      setLoginError(t("auth.invalidCredentials"));
+      return;
+    }
+    onLogin(matched.role, matched.id);
+    setLoginOpen(false);
+  };
 
   return (
     <div className="sticky top-0 z-10 border-b border-[#e5e7eb] bg-white">
       <div className="h-1 bg-[#ef3124]" />
-      <div className="flex flex-wrap items-center gap-4 px-6 py-3">
-        <div className="min-w-[220px]">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
-            <img src={skhynixLogo} alt="SK hynix" className="h-9 w-auto" />
-            {t("header.title")}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-[#6b7280]">
-            <StatusDot tone={statusTone} />
-            {t("header.connection")}: {statusLabel} · {t("header.latency")} {latencyLabel} ·{" "}
-            {t("header.lastUpdate")} {lastUpdateLabel}
-          </div>
-        </div>
-
-        <div className="flex flex-1 flex-wrap items-center gap-3">
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2",
-              permissions.canControl ? "" : "opacity-60"
-            )}
-          >
-            <div className="text-xs text-[#6b7280]">{t("label.robot")}</div>
-            <select
-              className="bg-transparent text-sm text-[#111827] outline-none"
-              disabled={!permissions.canControl}
-            >
-              <option>AMR-01</option>
-              <option>AMR-02</option>
-              <option>AMR-03</option>
-            </select>
+      <div className="mx-auto w-full max-w-[1280px] 2xl:max-w-[1536px] 3xl:max-w-[1720px] px-4 2xl:px-6 3xl:px-8">
+        <div className="flex flex-wrap items-center gap-3 py-2">
+          <div className="min-w-[220px] max-w-[420px] flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#111827] min-w-0">
+              <img src={skhynixLogo} alt="SK hynix" className="h-9 w-auto" />
+              <span className="truncate">{t("header.title")}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-xs text-[#6b7280] truncate">
+              <StatusDot tone={statusTone} />
+              {t("header.connection")}: {statusLabel} · {t("header.latency")} {latencyLabel} ·{" "}
+              {t("header.lastUpdate")} {lastUpdateLabel}
+            </div>
           </div>
 
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2",
-              permissions.canControl ? "" : "opacity-60"
-            )}
-          >
-            <div className="text-xs text-[#6b7280]">{t("label.zone")}</div>
-            <select
-              className="bg-transparent text-sm text-[#111827] outline-none"
-              disabled={!permissions.canControl}
-            >
-              <option>{t("label.all")}</option>
-              <option>A</option>
-              <option>B</option>
-              <option>C</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Chip label={`${t("chip.alarms")} 2`} />
-            <Chip label={`${t("chip.events")} 14`} />
-          </div>
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2">
-            <span className="text-xs text-[#6b7280]">{t("label.search")}</span>
-            <input
+          <div className="flex flex-1 flex-wrap items-center gap-3">
+            <div
               className={cn(
-                "w-40 bg-transparent text-sm text-[#111827] outline-none",
+                "flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm",
                 permissions.canControl ? "" : "opacity-60"
               )}
-              placeholder={t("placeholder.search")}
-              disabled={!permissions.canControl}
-            />
+            >
+              <div className="text-xs text-[#6b7280]">{t("label.robot")}</div>
+              <select
+                className="bg-transparent text-sm text-[#111827] outline-none"
+                disabled={!permissions.canControl}
+              value={selectedRobot}
+              onChange={(e) => setSelectedRobot(e.target.value)}
+              >
+              {robotOptions.map((robotId) => (
+                <option key={robotId} value={robotId}>
+                  {robotId}
+                </option>
+              ))}
+              </select>
+            </div>
+
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm",
+                permissions.canControl ? "" : "opacity-60"
+              )}
+            >
+              <div className="text-xs text-[#6b7280]">{t("label.zone")}</div>
+              <select
+                className="bg-transparent text-sm text-[#111827] outline-none"
+                disabled={!permissions.canControl}
+              value={selectedZone}
+              onChange={(e) => setSelectedZone(e.target.value)}
+              >
+              {zoneOptions.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone === "all" ? t("label.all") : zone}
+                </option>
+              ))}
+              </select>
+            </div>
           </div>
-          <div className="relative">
-            {isLoggedIn ? (
-              <button
-                className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#374151] hover:bg-[#f3f4f6]"
-                onClick={onLogout}
-              >
-                {t("auth.logout")}
-              </button>
-            ) : (
-              <button
-                className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#374151] hover:bg-[#f3f4f6]"
-                onClick={() => setLoginOpen((prev) => !prev)}
-              >
-                {t("auth.login")}
-              </button>
-            )}
-            {!isLoggedIn && loginOpen ? (
-              <div className="absolute right-0 top-11 z-20 w-48 rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-lg">
-                <div className="text-xs font-semibold text-[#111827]">{t("auth.selectAccount")}</div>
-                <select
-                  className="mt-2 w-full rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827]"
-                  value={loginRole}
-                  onChange={(e) => setLoginRole(e.target.value as Exclude<UserRole, "viewer">)}
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Chip label={`${t("chip.alarms")} 2`} />
+              <Chip label={`${t("chip.events")} 14`} />
+            </div>
+            <div
+              ref={loginContainerRef}
+              className="relative flex items-center rounded-xl border border-[#e5e7eb] bg-white shadow-sm"
+            >
+              {isLoggedIn ? (
+                <button
+                  className="rounded-l-xl px-3 py-2 text-xs text-[#374151] hover:bg-[#f3f4f6]"
+                  onClick={onLogout}
                 >
+                  {t("auth.logout")}
+                </button>
+              ) : (
+                <button
+                  className="rounded-l-xl px-3 py-2 text-xs text-[#374151] hover:bg-[#f3f4f6]"
+                  onClick={() => setLoginOpen((prev) => !prev)}
+                >
+                  {t("auth.login")}
+                </button>
+              )}
+              <span className="h-5 w-px bg-[#e5e7eb]" />
+              <div className="px-3 py-2 text-xs text-[#6b7280]">
+                {t("label.user")}:
+                <select
+                  className="ml-2 bg-transparent text-xs text-[#6b7280] outline-none"
+                  value={role}
+                  onChange={(e) => {
+                    const nextRole = e.target.value as UserRole;
+                    if (nextRole === role) {
+                      return;
+                    }
+                    if (nextRole === "viewer") {
+                      onLogout();
+                      return;
+                    }
+                    setLoginRole(nextRole as Exclude<UserRole, "viewer">);
+                    setLoginOpen(true);
+                  }}
+                >
+                  <option value="viewer">{ROLE_LABELS[locale].viewer}</option>
                   <option value="operator">{ROLE_LABELS[locale].operator}</option>
                   <option value="admin">{ROLE_LABELS[locale].admin}</option>
                 </select>
-                <button
-                  className="mt-3 w-full rounded-lg bg-[#ef3124] px-2 py-1.5 text-xs text-white hover:bg-[#dc2b20]"
-                  onClick={() => {
-                    onLogin(loginRole);
-                    setLoginOpen(false);
-                  }}
-                >
-                  {t("auth.confirmLogin")}
-                </button>
+                {isLoggedIn && currentUserId ? (
+                  <span className="ml-1 text-[11px] text-[#9ca3af]">({currentUserId})</span>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280]">
-            2026-01-15 15:24
-          </div>
-          <div className="flex items-center gap-1 rounded-xl border border-[#e5e7eb] bg-white p-1 text-xs text-[#6b7280]">
-            {(["ko", "en"] as const).map((lang) => (
-              <button
-                key={lang}
-                className={cn(
-                  "rounded-lg px-2 py-1",
-                  locale === lang ? "bg-[#ef3124] text-white" : "text-[#6b7280] hover:bg-[#f3f4f6]"
-                )}
-                onClick={() => setLocale(lang)}
-              >
-                {LOCALE_LABELS[lang]}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280]">
-            {t("label.user")}: {isLoggedIn ? ROLE_LABELS[locale][role] : ROLE_LABELS[locale].viewer}
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280]">
-            {t("label.license")}: {t("label.licenseOk")}
+              {!isLoggedIn && loginOpen ? (
+                <div className="absolute right-0 top-11 z-20 w-56 rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold text-[#111827]">{t("auth.login")}</div>
+                    <button
+                      className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                      onClick={() => setLoginOpen(false)}
+                    >
+                      {t("auth.close")}
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <div className="text-[11px] text-[#6b7280]">{t("auth.userId")}</div>
+                      <input
+                        className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                        placeholder={t("auth.userIdPlaceholder")}
+                        value={loginId}
+                        onChange={(e) => {
+                          setLoginId(e.target.value);
+                          setLoginError("");
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleLoginSubmit();
+                          }
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-[#6b7280]">{t("auth.password")}</div>
+                      <input
+                        className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                        placeholder={t("auth.passwordPlaceholder")}
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => {
+                          setLoginPassword(e.target.value);
+                          setLoginError("");
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleLoginSubmit();
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {loginError ? (
+                    <div className="mt-2 text-[11px] text-rose-600">{loginError}</div>
+                  ) : null}
+                  <button
+                    className={cn(
+                      "mt-3 w-full rounded-lg px-2 py-1.5 text-xs text-white",
+                      isLoginValid ? "bg-[#ef3124] hover:bg-[#dc2b20]" : "bg-[#f3b7b2] cursor-not-allowed"
+                    )}
+                    disabled={!isLoginValid}
+                    onClick={handleLoginSubmit}
+                  >
+                    {t("auth.confirmLogin")}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280] shadow-sm">
+              2026-01-15 15:24
+            </div>
+            <div className="flex items-center gap-1 rounded-xl border border-[#e5e7eb] bg-white p-1 text-xs text-[#6b7280] shadow-sm">
+              {(["ko", "en"] as const).map((lang) => (
+                <button
+                  key={lang}
+                  className={cn(
+                    "rounded-lg px-2 py-1",
+                    locale === lang ? "bg-[#ef3124] text-white" : "text-[#6b7280] hover:bg-[#f3f4f6]"
+                  )}
+                  onClick={() => setLocale(lang)}
+                >
+                  {LOCALE_LABELS[lang]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-2">
-        {visibleTabs.map((tabItem) => (
-          <button
-            key={tabItem.key}
-            onClick={() => setTab(tabItem.key)}
-            className={cn(
-              "rounded-lg px-3 py-2.5 text-sm",
-              tab === tabItem.key ? "bg-[#ef3124] text-white" : "text-[#374151] hover:bg-[#f3f4f6]"
-            )}
-          >
-            {t(tabItem.labelKey)}
-          </button>
-        ))}
+        <div className="flex flex-wrap items-center gap-2 pb-2">
+          {visibleTabs.map((tabItem) => (
+            <button
+              key={tabItem.key}
+              onClick={() => setTab(tabItem.key)}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-xs shadow-sm",
+                tab === tabItem.key
+                  ? "border-transparent bg-[#ef3124] text-white"
+                  : "border-[#e5e7eb] bg-white text-[#374151] hover:bg-[#f3f4f6]"
+              )}
+            >
+              {t(tabItem.labelKey)}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -979,8 +1293,8 @@ function HomeTab({
   const alarmStatus = summary.alarms.crit > 0 ? "crit" : summary.alarms.warn > 0 ? "warn" : "ok";
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           label={t("metric.uptime")}
           value={summary.uptimeRate.toFixed(0)}
@@ -1021,16 +1335,16 @@ function HomeTab({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2 space-y-4">
           <Section title={t("section.summary")} right={t("section.summaryRange")}>
-            <div className="p-4">
+            <div className="p-3">
               <Placeholder label={t("placeholder.summary")} />
             </div>
           </Section>
           <Section title={t("section.fleet")} right={t("section.realtime")}>
-            <div className="p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="p-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 <Placeholder label={t("placeholder.robotDist")} />
                 <Placeholder label={t("placeholder.batteryDist")} />
               </div>
@@ -1039,12 +1353,12 @@ function HomeTab({
         </div>
 
         <Section title={t("section.events")} right={t("section.eventsHint")}>
-          <div className="p-4">
-            <div className="space-y-2">
+          <div className="p-3">
+            <div className="space-y-1.5">
               {events.map((e, i) => (
                 <button
                   key={i}
-                  className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-left hover:bg-[#f3f4f6]"
+                  className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-left hover:bg-[#f3f4f6]"
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-[#6b7280]">{e.t} · {e.robot}</div>
@@ -1064,7 +1378,7 @@ function HomeTab({
                   <div className="mt-1 text-sm text-[#111827]">
                     {translateText(e.msg, locale)}
                   </div>
-                  <div className="mt-1 text-xs text-[#6b7280]">
+                  <div className="mt-0.5 text-[11px] text-[#6b7280]">
                     {e.status ? translateText(e.status, locale) : t("label.checkNeeded")}
                   </div>
                 </button>
@@ -1328,31 +1642,14 @@ function WirelessDiagnosticsTab({ t }: { t: Translator }) {
 function ApiDownloadTab({
   role,
   permissionsConfig,
-  setPermissionsConfig,
   t,
-  locale,
 }: {
   role: UserRole;
   permissionsConfig: PermissionsConfig;
-  setPermissionsConfig: React.Dispatch<React.SetStateAction<PermissionsConfig>>;
   t: Translator;
-  locale: Locale;
 }) {
   const effectivePermissions =
     role === "admin" ? ADMIN_PERMISSIONS : permissionsConfig[role];
-
-  const updateRolePermission = (
-    targetRole: Exclude<UserRole, "admin">,
-    update: Partial<RolePermissions>
-  ) => {
-    setPermissionsConfig((prev) => ({
-      ...prev,
-      [targetRole]: {
-        ...prev[targetRole],
-        ...update,
-      },
-    }));
-  };
 
   return (
     <div className="space-y-6">
@@ -1388,70 +1685,525 @@ function ApiDownloadTab({
           </div>
         </div>
       </Section>
+    </div>
+  );
+}
 
-      {role === "admin" ? (
-        <Section title={t("section.admin")} right={t("section.adminHint")}>
-          <div className="p-4 space-y-4 text-sm text-[#374151]">
-            {(["viewer", "operator"] as const).map((targetRole) => (
-              <div key={targetRole} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-[#111827]">
-                    {ROLE_LABELS[locale][targetRole]} {t("admin.rolePermissionSuffix")}
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-[#6b7280]">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={permissionsConfig[targetRole].canControl}
-                        onChange={(e) =>
-                          updateRolePermission(targetRole, { canControl: e.target.checked })
-                        }
-                      />
-                      {t("admin.control")}
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={permissionsConfig[targetRole].canDownload}
-                        onChange={(e) =>
-                          updateRolePermission(targetRole, { canDownload: e.target.checked })
-                        }
-                      />
-                      {t("admin.download")}
-                    </label>
-                  </div>
+function AdminTab({
+  role,
+  permissionsConfig,
+  setPermissionsConfig,
+  accounts,
+  setAccounts,
+  onLog,
+  currentUserId,
+  t,
+  locale,
+}: {
+  role: UserRole;
+  permissionsConfig: PermissionsConfig;
+  setPermissionsConfig: React.Dispatch<React.SetStateAction<PermissionsConfig>>;
+  accounts: Account[];
+  setAccounts: React.Dispatch<React.SetStateAction<Account[]>>;
+  onLog: (entry: Omit<LogEntry, "id" | "at">) => void;
+  currentUserId: string | null;
+  t: Translator;
+  locale: Locale;
+}) {
+  const isAdmin = role === "admin";
+  const [draftPermissions, setDraftPermissions] = useState<PermissionsConfig>(permissionsConfig);
+  const [newAccountId, setNewAccountId] = useState("");
+  const [newAccountPassword, setNewAccountPassword] = useState("");
+  const [newAccountRole, setNewAccountRole] = useState<Exclude<UserRole, "viewer">>("operator");
+  const [passwordDrafts, setPasswordDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setDraftPermissions(permissionsConfig);
+  }, [permissionsConfig]);
+
+  useEffect(() => {
+    setPasswordDrafts(
+      accounts.reduce<Record<string, string>>((acc, account) => {
+        acc[account.id] = account.password;
+        return acc;
+      }, {})
+    );
+  }, [accounts]);
+
+  const updateRolePermission = (
+    targetRole: Exclude<UserRole, "admin">,
+    update: Partial<RolePermissions>
+  ) => {
+    if (!isAdmin) {
+      return;
+    }
+    setDraftPermissions((prev) => ({
+      ...prev,
+      [targetRole]: {
+        ...prev[targetRole],
+        ...update,
+      },
+    }));
+  };
+
+  const isDirty = isAdmin && JSON.stringify(draftPermissions) !== JSON.stringify(permissionsConfig);
+  const isAccountDuplicate = accounts.some(
+    (account) => account.id.toLowerCase() === newAccountId.trim().toLowerCase()
+  );
+  const canAddAccount =
+    newAccountId.trim().length > 0 && newAccountPassword.trim().length > 0 && !isAccountDuplicate;
+
+  const updateAccount = (id: string, update: Partial<Account>) => {
+    setAccounts((prev) =>
+      prev.map((account) => (account.id === id ? { ...account, ...update } : account))
+    );
+  };
+
+  const removeAccount = (id: string) => {
+    setAccounts((prev) => prev.filter((account) => account.id !== id));
+  };
+
+  const logActor = currentUserId ?? "admin";
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+      <Section title={t("section.admin")} right={t("section.adminHint")}>
+        <div className="p-4 space-y-4 text-sm text-[#374151]">
+          {(["viewer", "operator"] as const).map((targetRole) => (
+            <div key={targetRole} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-[#111827]">
+                  {ROLE_LABELS[locale][targetRole]} {t("admin.rolePermissionSuffix")}
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
-                  {TAB_OPTIONS.map((tabItem) => (
-                    <label
-                      key={tabItem.key}
-                      className="flex items-center gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={permissionsConfig[targetRole].tabs.includes(tabItem.key)}
-                        onChange={(e) => {
-                          const nextTabs = e.target.checked
-                            ? [...permissionsConfig[targetRole].tabs, tabItem.key]
-                            : permissionsConfig[targetRole].tabs.filter((key) => key !== tabItem.key);
-                          if (nextTabs.length === 0) {
-                            return;
-                          }
-                          updateRolePermission(targetRole, { tabs: nextTabs });
-                        }}
-                      />
-                      {t(tabItem.labelKey)}
-                    </label>
-                  ))}
+                <div className="flex items-center gap-3 text-xs text-[#6b7280]">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={draftPermissions[targetRole].canControl}
+                      onChange={(e) =>
+                        updateRolePermission(targetRole, { canControl: e.target.checked })
+                      }
+                    />
+                    {t("admin.control")}
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={draftPermissions[targetRole].canDownload}
+                      onChange={(e) =>
+                        updateRolePermission(targetRole, { canDownload: e.target.checked })
+                      }
+                    />
+                    {t("admin.download")}
+                  </label>
                 </div>
               </div>
-            ))}
-            <div className="text-xs text-[#6b7280]">
-              {t("admin.note")}
+              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+                {TAB_OPTIONS.filter((tabItem) => tabItem.key !== "admin").map((tabItem) => (
+                  <label
+                    key={tabItem.key}
+                    className="flex items-center gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draftPermissions[targetRole].tabs.includes(tabItem.key)}
+                      onChange={(e) => {
+                        const nextTabs = e.target.checked
+                          ? [...draftPermissions[targetRole].tabs, tabItem.key]
+                          : draftPermissions[targetRole].tabs.filter((key) => key !== tabItem.key);
+                        if (nextTabs.length === 0) {
+                          return;
+                        }
+                        updateRolePermission(targetRole, { tabs: nextTabs });
+                      }}
+                    />
+                    {t(tabItem.labelKey)}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-[#6b7280]">{t("admin.saveHint")}</div>
+            <button
+              className={cn(
+                "rounded-lg px-3 py-2 text-xs text-white transition",
+                isDirty ? "bg-[#ef3124] hover:bg-[#dc2b20]" : "bg-[#f3b7b2] cursor-not-allowed"
+              )}
+              disabled={!isDirty}
+              onClick={() => {
+                setPermissionsConfig(draftPermissions);
+                onLog({
+                  accountId: logActor,
+                  type: "action",
+                  message: `권한 저장 (${logActor})`,
+                });
+              }}
+            >
+              {t("admin.save")}
+            </button>
+          </div>
+          <div className="rounded-lg border border-[#e5e7eb] bg-white p-4 space-y-3">
+            <div className="text-sm font-semibold text-[#111827]">{t("admin.accounts")}</div>
+            <div className="text-xs text-[#6b7280]">{t("admin.accountHint")}</div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+              <input
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                placeholder={t("admin.accountId")}
+                value={newAccountId}
+                onChange={(e) => setNewAccountId(e.target.value)}
+              />
+              <input
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                placeholder={t("admin.accountPassword")}
+                type="password"
+                value={newAccountPassword}
+                onChange={(e) => setNewAccountPassword(e.target.value)}
+              />
+              <select
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                value={newAccountRole}
+                onChange={(e) => setNewAccountRole(e.target.value as Exclude<UserRole, "viewer">)}
+              >
+                <option value="operator">{ROLE_LABELS[locale].operator}</option>
+                <option value="admin">{ROLE_LABELS[locale].admin}</option>
+              </select>
+              <button
+                className={cn(
+                  "rounded-lg px-2 py-1 text-xs text-white",
+                  canAddAccount ? "bg-[#ef3124] hover:bg-[#dc2b20]" : "bg-[#f3b7b2] cursor-not-allowed"
+                )}
+                disabled={!canAddAccount}
+                onClick={() => {
+                  if (!canAddAccount) {
+                    return;
+                  }
+                  setAccounts((prev) => [
+                    ...prev,
+                    { id: newAccountId.trim(), password: newAccountPassword, role: newAccountRole },
+                  ]);
+                  onLog({
+                    accountId: logActor,
+                    type: "action",
+                    message: `계정 추가 (${newAccountId.trim()} / ${newAccountRole})`,
+                  });
+                  setNewAccountId("");
+                  setNewAccountPassword("");
+                  setNewAccountRole("operator");
+                }}
+              >
+                {t("admin.addAccount")}
+              </button>
+            </div>
+            <div className="space-y-2">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
+                >
+                  <div className="text-[#111827]">{account.id}</div>
+                  <input
+                    className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                    type="password"
+                      value={passwordDrafts[account.id] ?? account.password}
+                      onChange={(e) =>
+                        setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
+                      }
+                      onBlur={() => {
+                        const nextPassword = (passwordDrafts[account.id] ?? "").trim();
+                        if (!nextPassword || nextPassword === account.password) {
+                          return;
+                        }
+                        updateAccount(account.id, { password: nextPassword });
+                        onLog({
+                          accountId: logActor,
+                          type: "action",
+                          message: `비밀번호 변경 (${account.id})`,
+                        });
+                      }}
+                  />
+                  <select
+                    className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                    value={account.role}
+                    onChange={(e) =>
+                        {
+                          const nextRole = e.target.value as Exclude<UserRole, "viewer">;
+                          updateAccount(account.id, { role: nextRole });
+                          onLog({
+                            accountId: logActor,
+                            type: "action",
+                            message: `권한 변경 (${account.id} → ${nextRole})`,
+                          });
+                        }
+                    }
+                  >
+                    <option value="operator">{ROLE_LABELS[locale].operator}</option>
+                    <option value="admin">{ROLE_LABELS[locale].admin}</option>
+                  </select>
+                  <div className="flex justify-end">
+                    <button
+                      className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                        onClick={() => {
+                          removeAccount(account.id);
+                          onLog({
+                            accountId: logActor,
+                            type: "action",
+                            message: `계정 삭제 (${account.id})`,
+                          });
+                        }}
+                    >
+                      {t("admin.deleteAccount")}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </Section>
-      ) : null}
+          <div className="text-xs text-[#6b7280]">
+            {t("admin.note")}
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function LogsTab({
+  role,
+  accounts,
+  activityLogs,
+  t,
+}: {
+  role: UserRole;
+  accounts: Account[];
+  activityLogs: LogEntry[];
+  t: Translator;
+}) {
+  const [logFilter, setLogFilter] = useState<string>("all");
+
+  if (role !== "admin") {
+    return null;
+  }
+
+  const filteredLogs = activityLogs.filter((entry) =>
+    logFilter === "all" ? true : entry.accountId === logFilter
+  );
+
+  return (
+    <div className="space-y-6">
+      <Section title={t("admin.logs")}>
+        <div className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-[#6b7280]">{t("admin.accountHint")}</div>
+            <div className="flex items-center gap-2 text-xs text-[#6b7280]">
+              <span>{t("admin.logFilter")}</span>
+              <select
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                value={logFilter}
+                onChange={(e) => setLogFilter(e.target.value)}
+              >
+                <option value="all">ALL</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-[#e5e7eb]">
+            <table className="w-full text-xs">
+              <thead className="bg-[#f3f4f6] text-[#6b7280]">
+                <tr>
+                  <th className="px-3 py-2 text-left">{t("admin.logTime")}</th>
+                  <th className="px-3 py-2 text-left">{t("admin.accountId")}</th>
+                  <th className="px-3 py-2 text-left">{t("admin.logType")}</th>
+                  <th className="px-3 py-2 text-left">{t("admin.logMessage")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e5e7eb]">
+                {filteredLogs.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-3 text-[#6b7280]" colSpan={4}>
+                      {t("admin.logEmpty")}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLogs.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-[#f3f4f6]">
+                      <td className="px-3 py-2 text-[#6b7280]">{entry.at}</td>
+                      <td className="px-3 py-2">{entry.accountId}</td>
+                      <td className="px-3 py-2">
+                        {entry.type === "login" ? t("admin.logTypeLogin") : t("admin.logTypeAction")}
+                      </td>
+                      <td className="px-3 py-2">{entry.message}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function ControlTab({
+  t,
+  selectedRobot,
+  selectedZone,
+  canControl,
+  onControl,
+}: {
+  t: Translator;
+  selectedRobot: string;
+  selectedZone: string;
+  canControl: boolean;
+  onControl: (action: ControlAction, payload?: Record<string, string | number>) => void;
+}) {
+  const [speedLimit, setSpeedLimit] = useState(1.5);
+  const [destination, setDestination] = useState("Node-01");
+  const controlButtonClass = cn(
+    "rounded-lg border px-3 py-2 text-xs shadow-sm",
+    canControl
+      ? "border-[#e5e7eb] bg-white text-[#374151] hover:bg-[#f3f4f6]"
+      : "bg-[#f9fafb] text-[#9ca3af] cursor-not-allowed"
+  );
+
+  return (
+    <div className="space-y-6">
+      <Section title={t("section.control")} right={t("section.controlHint")}>
+        <div className="p-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
+            <span>{t("label.robot")}: {selectedRobot}</span>
+            <span>·</span>
+            <span>{t("label.zone")}: {selectedZone === "all" ? t("label.all") : selectedZone}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={controlButtonClass}
+              disabled={!canControl}
+              onClick={() => onControl("start")}
+            >
+              {t("control.start")}
+            </button>
+            <button
+              className={controlButtonClass}
+              disabled={!canControl}
+              onClick={() => onControl("stop")}
+            >
+              {t("control.stop")}
+            </button>
+            <button
+              className={controlButtonClass}
+              disabled={!canControl}
+              onClick={() => onControl("pause")}
+            >
+              {t("control.pause")}
+            </button>
+            <button
+              className={controlButtonClass}
+              disabled={!canControl}
+              onClick={() => onControl("resume")}
+            >
+              {t("control.resume")}
+            </button>
+            <button
+              className={controlButtonClass}
+              disabled={!canControl}
+              onClick={() => onControl("return_charge")}
+            >
+              {t("control.returnCharge")}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-[#e5e7eb] bg-white p-3">
+              <div className="text-xs text-[#6b7280]">{t("control.speedLimit")}</div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  className="w-20 rounded-md border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                  type="number"
+                  min={0.2}
+                  step={0.1}
+                  value={speedLimit}
+                  onChange={(e) => setSpeedLimit(Number(e.target.value))}
+                  disabled={!canControl}
+                />
+                <button
+                  className={controlButtonClass}
+                  disabled={!canControl}
+                  onClick={() => onControl("set_speed_limit", { speed: speedLimit })}
+                >
+                  {t("control.setSpeed")}
+                </button>
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#e5e7eb] bg-white p-3">
+              <div className="text-xs text-[#6b7280]">{t("control.destination")}</div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  className="w-full rounded-md border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  disabled={!canControl}
+                />
+                <button
+                  className={controlButtonClass}
+                  disabled={!canControl || destination.trim().length === 0}
+                  onClick={() => onControl("set_destination", { destination })}
+                >
+                  {t("control.sendDestination")}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-[#e5e7eb] bg-white p-3">
+            <div className="text-xs text-[#6b7280]">{t("control.manual")}</div>
+            <div className="mt-2 grid grid-cols-3 gap-2 max-w-[220px]">
+              <button
+                className={controlButtonClass}
+                disabled={!canControl}
+                onClick={() => onControl("manual_move", { direction: "forward" })}
+              >
+                {t("control.forward")}
+              </button>
+              <button
+                className={controlButtonClass}
+                disabled={!canControl}
+                onClick={() => onControl("manual_move", { direction: "stop" })}
+              >
+                {t("control.stopMove")}
+              </button>
+              <button
+                className={controlButtonClass}
+                disabled={!canControl}
+                onClick={() => onControl("manual_move", { direction: "backward" })}
+              >
+                {t("control.backward")}
+              </button>
+              <button
+                className={controlButtonClass}
+                disabled={!canControl}
+                onClick={() => onControl("manual_move", { direction: "left" })}
+              >
+                {t("control.left")}
+              </button>
+              <button
+                className={controlButtonClass}
+                disabled={!canControl}
+                onClick={() => onControl("manual_move", { direction: "right" })}
+              >
+                {t("control.right")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Section>
     </div>
   );
 }
@@ -1462,9 +2214,14 @@ export default function App() {
   const [role, setRole] = useState<UserRole>("viewer");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginRole, setLoginRole] = useState<Exclude<UserRole, "viewer">>("operator");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [selectedRobot, setSelectedRobot] = useState("AMR-01");
+  const [selectedZone, setSelectedZone] = useState("all");
   const [permissionsConfig, setPermissionsConfig] = useState<PermissionsConfig>(() =>
     getInitialPermissions()
   );
+  const [accounts, setAccounts] = useState<Account[]>(() => getInitialAccounts());
+  const [activityLogs, setActivityLogs] = useState<LogEntry[]>(() => getInitialLogs());
   const [summary, setSummary] = useState<SummaryMetrics>(defaultSummary);
   const [events, setEvents] = useState<EventItem[]>(defaultEvents);
   const [robots, setRobots] = useState<RobotStatusItem[]>(defaultRobotStatus);
@@ -1473,6 +2230,7 @@ export default function App() {
   const [mapStatus, setMapStatus] = useState<MapStatus>(defaultMapStatus);
   const [connection, setConnection] = useState<ConnectionState>(defaultConnectionState);
   const [now, setNow] = useState(() => Date.now());
+  const mqttClientRef = useRef<mqtt.MqttClient | null>(null);
 
   const t = useMemo(
     () => (key: I18nKey) => I18N[locale][key] ?? I18N.ko[key],
@@ -1484,11 +2242,47 @@ export default function App() {
     [permissionsConfig, role]
   );
 
+  const robotOptions = useMemo(() => {
+    const ids = robots.map((robot) => robot.id);
+    return ids.length > 0 ? ids : ["AMR-01", "AMR-02", "AMR-03"];
+  }, [robots]);
+
+  const zoneOptions = useMemo(() => ["all", "A", "B", "C"], []);
+
+  useEffect(() => {
+    if (!robotOptions.includes(selectedRobot)) {
+      setSelectedRobot(robotOptions[0]);
+    }
+  }, [robotOptions, selectedRobot]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(permissionsConfig));
     }
   }, [permissionsConfig]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+    }
+  }, [accounts]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(activityLogs));
+    }
+  }, [activityLogs]);
+
+  const addLog = (entry: Omit<LogEntry, "id" | "at">) => {
+    setActivityLogs((prev) => [
+      {
+        ...entry,
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        at: new Date().toLocaleString(),
+      },
+      ...prev,
+    ].slice(0, 200));
+  };
 
   useEffect(() => {
     if (!permissions.tabs.includes(tab)) {
@@ -1530,6 +2324,7 @@ export default function App() {
 
     client.on("connect", () => {
       setConnection((prev) => ({ ...prev, status: "connected", error: null }));
+      mqttClientRef.current = client;
       client.subscribe([
         "amr/summary",
         "amr/events",
@@ -1547,6 +2342,7 @@ export default function App() {
 
     client.on("close", () => {
       setConnection((prev) => ({ ...prev, status: "disconnected" }));
+      mqttClientRef.current = null;
     });
 
     client.on("error", (err: Error) => {
@@ -1611,6 +2407,7 @@ export default function App() {
 
     return () => {
       client.end(true);
+      mqttClientRef.current = null;
     };
   }, []);
 
@@ -1618,6 +2415,35 @@ export default function App() {
     () => formatLastUpdate(connection.lastMessageAt, now, t),
     [connection.lastMessageAt, now, t]
   );
+
+  const sendControlCommand = (action: ControlAction, payload?: Record<string, string | number>) => {
+    if (!permissions.canControl) {
+      return;
+    }
+    const client = mqttClientRef.current;
+    if (!client || connection.status !== "connected") {
+      addLog({
+        accountId: currentUserId ?? "viewer",
+        type: "action",
+        message: `조작 실패: 연결 안됨 (${action})`,
+      });
+      return;
+    }
+    const message = {
+      type: "control",
+      action,
+      robotId: selectedRobot,
+      zone: selectedZone,
+      payload: payload ?? {},
+      at: new Date().toISOString(),
+    };
+    client.publish("amr/control", JSON.stringify(message));
+    addLog({
+      accountId: currentUserId ?? "viewer",
+      type: "action",
+      message: `조작 실행 (${action} / ${selectedRobot})`,
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#f7f7f8] text-[#111827]">
@@ -1639,20 +2465,35 @@ export default function App() {
             isLoggedIn={isLoggedIn}
             loginRole={loginRole}
             setLoginRole={setLoginRole}
-            onLogin={(nextRole) => {
+            accounts={accounts}
+            currentUserId={currentUserId}
+            selectedRobot={selectedRobot}
+            setSelectedRobot={setSelectedRobot}
+            selectedZone={selectedZone}
+            setSelectedZone={setSelectedZone}
+            robotOptions={robotOptions}
+            zoneOptions={zoneOptions}
+            onLogin={(nextRole, userId) => {
               setRole(nextRole);
               setIsLoggedIn(true);
+              setCurrentUserId(userId);
+              addLog({
+                accountId: userId,
+                type: "login",
+                message: `로그인 (${userId} / ${nextRole})`,
+              });
             }}
             onLogout={() => {
               setRole("viewer");
               setIsLoggedIn(false);
               setLoginRole("operator");
+              setCurrentUserId(null);
             }}
             locale={locale}
             setLocale={setLocale}
             t={t}
           />
-          <main className="mx-auto w-full max-w-[1280px] 2xl:max-w-[1536px] 3xl:max-w-[1720px] flex-1 space-y-4 px-4 py-4 2xl:px-6 3xl:px-8">
+          <main className="mx-auto w-full max-w-[1280px] 2xl:max-w-[1536px] 3xl:max-w-[1720px] flex-1 space-y-4 px-4 py-3 2xl:px-6 3xl:px-8">
             {tab === "home" && <HomeTab summary={summary} events={events} t={t} locale={locale} />}
             {tab === "robot" && <RobotStatusTab robots={robots} t={t} locale={locale} />}
             {tab === "job" && <JobHistoryTab jobs={jobs} t={t} locale={locale} />}
@@ -1663,9 +2504,37 @@ export default function App() {
               <ApiDownloadTab
                 role={role}
                 permissionsConfig={permissionsConfig}
+                t={t}
+              />
+            )}
+            {tab === "control" && (
+              <ControlTab
+                t={t}
+                selectedRobot={selectedRobot}
+                selectedZone={selectedZone}
+                canControl={permissions.canControl}
+                onControl={sendControlCommand}
+              />
+            )}
+            {tab === "admin" && (
+              <AdminTab
+                role={role}
+                permissionsConfig={permissionsConfig}
                 setPermissionsConfig={setPermissionsConfig}
+                accounts={accounts}
+                setAccounts={setAccounts}
+                onLog={addLog}
+                currentUserId={currentUserId}
                 t={t}
                 locale={locale}
+              />
+            )}
+            {tab === "logs" && (
+              <LogsTab
+                role={role}
+                accounts={accounts}
+                activityLogs={activityLogs}
+                t={t}
               />
             )}
           </main>
