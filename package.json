@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "electron:build": "npm run build && electron-builder",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "autopush": "powershell -ExecutionPolicy Bypass -File scripts/auto-push.ps1"
   },
   "dependencies": {
     "mqtt": "^5.14.1",
