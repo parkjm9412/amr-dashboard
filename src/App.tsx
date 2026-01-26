@@ -1240,16 +1240,10 @@ function TopBar({
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-3 pb-3">
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm",
-              permissions.canControl ? "" : "opacity-60"
-            )}
-          >
+          <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm">
             <div className="text-xs text-[#6b7280]">{t("label.robot")}</div>
             <select
               className="bg-transparent text-sm text-[#111827] outline-none"
-              disabled={!permissions.canControl}
               value={selectedRobot}
               onChange={(e) => setSelectedRobot(e.target.value)}
             >
@@ -1261,16 +1255,10 @@ function TopBar({
             </select>
           </div>
 
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm",
-              permissions.canControl ? "" : "opacity-60"
-            )}
-          >
+          <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm">
             <div className="text-xs text-[#6b7280]">{t("label.zone")}</div>
             <select
               className="bg-transparent text-sm text-[#111827] outline-none"
-              disabled={!permissions.canControl}
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
             >
