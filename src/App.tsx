@@ -782,7 +782,19 @@ function StatusDot({ tone = "ok" }: { tone?: "ok" | "warn" | "crit" }) {
   return <span className={cn("h-2.5 w-2.5 rounded-full", color)} />;
 }
 
-function Sidebar({ t }: { t: Translator }) {
+function Sidebar({
+  tab,
+  setTab,
+  permissions,
+  t,
+}: {
+  tab: TabKey;
+  setTab: (t: TabKey) => void;
+  permissions: RolePermissions;
+  t: Translator;
+}) {
+  const items = TAB_OPTIONS.filter((item) => permissions.tabs.includes(item.key));
+
   return (
     <aside className="hidden min-h-screen w-60 flex-col border-r border-[#e5e7eb] bg-white lg:flex">
       <div className="px-6 py-5">
@@ -791,6 +803,40 @@ function Sidebar({ t }: { t: Translator }) {
         </div>
         <div className="mt-3 text-base font-semibold text-[#111827]">AMR Control</div>
         <div className="mt-1 text-xs text-[#6b7280]">Plant Ops Command</div>
+      </div>
+
+      <div className="px-4">
+        <div className="px-2 text-xs font-semibold text-[#9ca3af]">MAIN</div>
+        <div className="mt-2 space-y-1">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setTab(item.key)}
+              className={cn(
+                "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition",
+                tab === item.key
+                  ? "bg-[#fff5f5] text-[#9b1c1c] ring-1 ring-[#f1c4c0]"
+                  : "text-[#374151] hover:bg-[#f3f4f6]"
+              )}
+              aria-label={t(item.labelKey)}
+            >
+              <>
+                <span
+                  className={cn(
+                    "mt-1 h-2 w-2 rounded-full",
+                    tab === item.key ? "bg-[#ef3124]" : "bg-[#d1d5db]"
+                  )}
+                />
+                <span className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{t(item.labelKey)}</div>
+                  {item.descKey ? (
+                    <div className="text-xs text-[#6b7280] truncate">{t(item.descKey)}</div>
+                  ) : null}
+                </span>
+              </>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mt-auto px-6 py-5">
@@ -878,11 +924,8 @@ function Placeholder({ label }: { label: string }) {
 }
 
 function TopBar({
-  tab,
-  setTab,
   connection,
   lastUpdateLabel,
-  permissions,
   role,
   isLoggedIn,
   loginRole,
@@ -901,12 +944,9 @@ function TopBar({
   setLocale,
   t,
 }: {
-  tab: TabKey;
-  setTab: (t: TabKey) => void;
   connection: ConnectionState;
   lastUpdateLabel: string;
   role: UserRole;
-  permissions: RolePermissions;
   isLoggedIn: boolean;
   loginRole: Exclude<UserRole, "viewer">;
   setLoginRole: (r: Exclude<UserRole, "viewer">) => void;
@@ -2415,14 +2455,16 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f7f7f8] text-[#111827]">
       <div className="flex min-h-screen">
-        <Sidebar t={t} />
+        <Sidebar
+          tab={tab}
+          setTab={setTab}
+          permissions={permissions}
+          t={t}
+        />
         <div className="flex min-h-screen flex-1 flex-col">
           <TopBar
-            tab={tab}
-            setTab={setTab}
             connection={connection}
             lastUpdateLabel={lastUpdateLabel}
-            permissions={permissions}
             role={role}
             isLoggedIn={isLoggedIn}
             loginRole={loginRole}
