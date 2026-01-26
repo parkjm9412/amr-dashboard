@@ -283,6 +283,9 @@ const I18N = {
     "admin.logType": "유형",
     "admin.logTime": "시간",
     "admin.logMessage": "내용",
+    "admin.logTypeAll": "전체",
+    "admin.logDateFrom": "시작일",
+    "admin.logDateTo": "종료일",
     "admin.logTypeLogin": "로그인",
     "admin.logTypeAction": "작업",
     "admin.logEmpty": "로그가 없습니다.",
@@ -469,35 +472,12 @@ const I18N = {
     "admin.logType": "Type",
     "admin.logTime": "Time",
     "admin.logMessage": "Message",
+    "admin.logTypeAll": "All",
+    "admin.logDateFrom": "From",
+    "admin.logDateTo": "To",
     "admin.logTypeLogin": "Login",
     "admin.logTypeAction": "Action",
     "admin.logEmpty": "No logs available.",
-    "admin.note": "Admin permissions are fixed. Changes are saved in the browser.",
-    "metric.uptime": "Uptime",
-    "metric.uptimeSub": "Last 24h average",
-    "metric.activeRobots": "Active robots",
-    "metric.totalRobots": "Total",
-    "metric.activeJobs": "Active jobs",
-    "metric.avgJob": "Avg",
-    "metric.alarm": "Alarms",
-    "metric.alarmSub": "Warn",
-    "metric.alarmSubCrit": "Crit",
-    "metric.latency": "Latency",
-    "metric.latencySub": "Network RTT",
-    "metric.energy": "Energy",
-    "metric.energySub": "Weighted battery average",
-    "metric.running": "Running",
-    "metric.idle": "Idle",
-    "metric.charging": "Charging",
-    "metric.immediateCheck": "Immediate action",
-    "control.start": "Start",
-    "control.stop": "Stop",
-    "control.pause": "Pause",
-    "control.resume": "Resume",
-    "control.returnCharge": "Return to charge",
-    "control.speedLimit": "Speed limit",
-    "control.setSpeed": "Apply speed",
-    "control.destination": "Destination",
     "control.sendDestination": "Send destination",
     "control.manual": "Manual control",
     "control.forward": "Forward",
@@ -802,19 +782,7 @@ function StatusDot({ tone = "ok" }: { tone?: "ok" | "warn" | "crit" }) {
   return <span className={cn("h-2.5 w-2.5 rounded-full", color)} />;
 }
 
-function Sidebar({
-  tab,
-  setTab,
-  permissions,
-  t,
-}: {
-  tab: TabKey;
-  setTab: (t: TabKey) => void;
-  permissions: RolePermissions;
-  t: Translator;
-}) {
-  const items = TAB_OPTIONS.filter((item) => permissions.tabs.includes(item.key));
-
+function Sidebar({ t }: { t: Translator }) {
   return (
     <aside className="hidden min-h-screen w-60 flex-col border-r border-[#e5e7eb] bg-white lg:flex">
       <div className="px-6 py-5">
@@ -823,40 +791,6 @@ function Sidebar({
         </div>
         <div className="mt-3 text-base font-semibold text-[#111827]">AMR Control</div>
         <div className="mt-1 text-xs text-[#6b7280]">Plant Ops Command</div>
-      </div>
-
-      <div className="px-4">
-        <div className="px-2 text-xs font-semibold text-[#9ca3af]">MAIN</div>
-        <div className="mt-2 space-y-1">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className={cn(
-                "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition",
-                tab === item.key
-                  ? "bg-[#fff5f5] text-[#9b1c1c] ring-1 ring-[#f1c4c0]"
-                  : "text-[#374151] hover:bg-[#f3f4f6]"
-              )}
-              aria-label={t(item.labelKey)}
-            >
-              <>
-                <span
-                  className={cn(
-                    "mt-1 h-2 w-2 rounded-full",
-                    tab === item.key ? "bg-[#ef3124]" : "bg-[#d1d5db]"
-                  )}
-                />
-                <span className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{t(item.labelKey)}</div>
-                  {item.descKey ? (
-                    <div className="text-xs text-[#6b7280] truncate">{t(item.descKey)}</div>
-                  ) : null}
-                </span>
-              </>
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="mt-auto px-6 py-5">
@@ -1027,11 +961,6 @@ function TopBar({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [loginOpen]);
-
-  const visibleTabs = useMemo(
-    () => TAB_OPTIONS.filter((item) => permissions.tabs.includes(item.key)),
-    [permissions.tabs]
-  );
 
   const statusTone =
     connection.status === "connected"
@@ -1223,22 +1152,6 @@ function TopBar({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 pb-2">
-          {visibleTabs.map((tabItem) => (
-            <button
-              key={tabItem.key}
-              onClick={() => setTab(tabItem.key)}
-              className={cn(
-                "rounded-lg border px-3 py-1.5 text-xs shadow-sm",
-                tab === tabItem.key
-                  ? "border-transparent bg-[#ef3124] text-white"
-                  : "border-[#e5e7eb] bg-white text-[#374151] hover:bg-[#f3f4f6]"
-              )}
-            >
-              {t(tabItem.labelKey)}
-            </button>
-          ))}
-        </div>
         <div className="flex flex-wrap items-center gap-3 pb-3">
           <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 shadow-sm">
             <div className="text-xs text-[#6b7280]">{t("label.robot")}</div>
@@ -1980,35 +1893,89 @@ function LogsTab({
   t: Translator;
 }) {
   const [logFilter, setLogFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "login" | "action">("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   if (role !== "admin") {
     return null;
   }
 
-  const filteredLogs = activityLogs.filter((entry) =>
-    logFilter === "all" ? true : entry.accountId === logFilter
-  );
+  const filteredLogs = activityLogs.filter((entry) => {
+    if (logFilter !== "all" && entry.accountId !== logFilter) {
+      return false;
+    }
+    if (typeFilter !== "all" && entry.type !== typeFilter) {
+      return false;
+    }
+
+    if (dateFrom || dateTo) {
+      const entryDate = new Date(entry.at);
+      if (Number.isNaN(entryDate.getTime())) {
+        return true;
+      }
+      if (dateFrom) {
+        const start = new Date(`${dateFrom}T00:00:00`);
+        if (entryDate < start) {
+          return false;
+        }
+      }
+      if (dateTo) {
+        const end = new Date(`${dateTo}T23:59:59`);
+        if (entryDate > end) {
+          return false;
+        }
+      }
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
       <Section title={t("admin.logs")}>
         <div className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-[#6b7280]">{t("admin.accountHint")}</div>
-            <div className="flex items-center gap-2 text-xs text-[#6b7280]">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
               <span>{t("admin.logFilter")}</span>
               <select
                 className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
                 value={logFilter}
                 onChange={(e) => setLogFilter(e.target.value)}
               >
-                <option value="all">ALL</option>
+                <option value="all">{t("admin.logTypeAll")}</option>
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.id}
                   </option>
                 ))}
               </select>
+
+              <span>{t("admin.logType")}</span>
+              <select
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as "all" | "login" | "action")}
+              >
+                <option value="all">{t("admin.logTypeAll")}</option>
+                <option value="login">{t("admin.logTypeLogin")}</option>
+                <option value="action">{t("admin.logTypeAction")}</option>
+              </select>
+
+              <span>{t("admin.logDateFrom")}</span>
+              <input
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+              <span>{t("admin.logDateTo")}</span>
+              <input
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
             </div>
           </div>
           <div className="overflow-hidden rounded-lg border border-[#e5e7eb]">
@@ -2031,7 +1998,11 @@ function LogsTab({
                 ) : (
                   filteredLogs.map((entry) => (
                     <tr key={entry.id} className="hover:bg-[#f3f4f6]">
-                      <td className="px-3 py-2 text-[#6b7280]">{entry.at}</td>
+                      <td className="px-3 py-2 text-[#6b7280]">
+                        {Number.isNaN(new Date(entry.at).getTime())
+                          ? entry.at
+                          : new Date(entry.at).toLocaleString()}
+                      </td>
                       <td className="px-3 py-2">{entry.accountId}</td>
                       <td className="px-3 py-2">
                         {entry.type === "login" ? t("admin.logTypeLogin") : t("admin.logTypeAction")}
@@ -2228,10 +2199,10 @@ export default function App() {
   const [now, setNow] = useState(() => Date.now());
   const mqttClientRef = useRef<mqtt.MqttClient | null>(null);
 
-  const t = useMemo(
-    () => (key: I18nKey) => I18N[locale][key] ?? I18N.ko[key],
-    [locale]
-  );
+  const t = useMemo(() => {
+    const localeTable = I18N[locale] as Partial<Record<I18nKey, string>>;
+    return (key: I18nKey) => localeTable[key] ?? I18N.ko[key];
+  }, [locale]);
 
   const permissions = useMemo(
     () => (role === "admin" ? ADMIN_PERMISSIONS : permissionsConfig[role]),
@@ -2444,12 +2415,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f7f7f8] text-[#111827]">
       <div className="flex min-h-screen">
-        <Sidebar
-          tab={tab}
-          setTab={setTab}
-          permissions={permissions}
-          t={t}
-        />
+        <Sidebar t={t} />
         <div className="flex min-h-screen flex-1 flex-col">
           <TopBar
             tab={tab}

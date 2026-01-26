@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import skhynixLogo from "./assets/skhynix-logo.jpg";
 
 
@@ -156,26 +156,7 @@ function Placeholder({ label }: { label: string }) {
   );
 }
 
-function TopBar({
-  tab,
-  setTab,
-}: {
-  tab: TabKey;
-  setTab: (t: TabKey) => void;
-}) {
-  const tabs: Array<{ key: TabKey; label: string }> = useMemo(
-    () => [
-      { key: "home", label: "Home" },
-      { key: "robot", label: "Robot Status" },
-      { key: "job", label: "Job History" },
-      { key: "battery", label: "Battery Info" },
-      { key: "map", label: "Map" },
-      { key: "wireless", label: "Wireless" },
-      { key: "api", label: "API & Download" },
-    ],
-    []
-  );
-
+function TopBar() {
   return (
     <div className="sticky top-0 z-10 border-b border-[#e5e7eb] bg-white">
       <div className="h-1 bg-[#ef3124]" />
@@ -217,23 +198,6 @@ function TopBar({
           </div>
         </div>
 
-        <div className="hidden lg:flex items-center rounded-xl border border-[#e5e7eb] bg-white p-1 shadow-sm">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "rounded-lg px-3 py-2 text-sm",
-                tab === t.key
-                  ? "bg-[#ef3124] text-white"
-                  : "text-[#374151] hover:bg-[#f3f4f6]"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
         <div className="ml-auto hidden xl:flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2">
             <span className="text-xs text-[#6b7280]">검색</span>
@@ -257,20 +221,6 @@ function TopBar({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 px-6 pb-4 lg:hidden">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "rounded-lg px-3 py-2 text-sm",
-              tab === t.key ? "bg-[#ef3124] text-white" : "text-[#374151] hover:bg-[#f3f4f6]"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -582,7 +532,7 @@ export default function App() {
       <div className="flex min-h-screen">
         <Sidebar tab={tab} setTab={setTab} />
         <div className="flex min-h-screen flex-1 flex-col">
-          <TopBar tab={tab} setTab={setTab} />
+          <TopBar />
           <main className="mx-auto w-full max-w-[1280px] flex-1 space-y-6 px-6 py-6">
             {tab === "home" && <HomeTab />}
             {tab === "robot" && <RobotStatusTab />}
