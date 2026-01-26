@@ -774,6 +774,13 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function decodeMqttPayload(payload: Uint8Array | string) {
+  if (typeof payload === "string") {
+    return payload;
+  }
+  return new TextDecoder().decode(payload);
+}
+
 type Translator = (key: I18nKey) => string;
 
 function translateText(value: string, locale: Locale) {
@@ -2349,8 +2356,8 @@ export default function App() {
       setConnection((prev) => ({ ...prev, status: "error", error: err.message }));
     });
 
-    client.on("message", (topic: string, payload: Buffer) => {
-      const parsed = parseMqttPayload(topic, payload.toString());
+    client.on("message", (topic: string, payload: Uint8Array) => {
+      const parsed = parseMqttPayload(topic, decodeMqttPayload(payload));
       if (!parsed) {
         return;
       }
