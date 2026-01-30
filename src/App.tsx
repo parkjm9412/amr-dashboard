@@ -968,7 +968,6 @@ function TopBar({
   const [loginId, setLoginId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const loginContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (loginOpen) {
@@ -982,22 +981,13 @@ function TopBar({
     if (!loginOpen) {
       return;
     }
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (loginContainerRef.current && target && loginContainerRef.current.contains(target)) {
-        return;
-      }
-      setLoginOpen(false);
-    };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setLoginOpen(false);
       }
     };
-    document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [loginOpen]);
@@ -1062,10 +1052,7 @@ function TopBar({
               <Chip label={`${t("chip.alarms")} 2`} />
               <Chip label={`${t("chip.events")} 14`} />
             </div>
-            <div
-              ref={loginContainerRef}
-              className="relative flex items-center rounded-xl border border-[#e5e7eb] bg-white shadow-sm"
-            >
+            <div className="relative flex items-center rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
               {isLoggedIn ? (
                 <button
                   className="rounded-l-xl px-3 py-2 text-xs text-[#374151] hover:bg-[#f3f4f6]"
@@ -1108,69 +1095,6 @@ function TopBar({
                   <span className="ml-1 text-[11px] text-[#9ca3af]">({currentUserId})</span>
                 ) : null}
               </div>
-              {!isLoggedIn && loginOpen ? (
-                <div className="absolute right-0 top-11 z-20 w-56 rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-[#111827]">{t("auth.login")}</div>
-                    <button
-                      className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-                      onClick={() => setLoginOpen(false)}
-                    >
-                      {t("auth.close")}
-                    </button>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    <div>
-                      <div className="text-[11px] text-[#6b7280]">{t("auth.userId")}</div>
-                      <input
-                        className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                        placeholder={t("auth.userIdPlaceholder")}
-                        value={loginId}
-                        onChange={(e) => {
-                          setLoginId(e.target.value);
-                          setLoginError("");
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleLoginSubmit();
-                          }
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-[#6b7280]">{t("auth.password")}</div>
-                      <input
-                        className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                        placeholder={t("auth.passwordPlaceholder")}
-                        type="password"
-                        value={loginPassword}
-                        onChange={(e) => {
-                          setLoginPassword(e.target.value);
-                          setLoginError("");
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleLoginSubmit();
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {loginError ? (
-                    <div className="mt-2 text-[11px] text-rose-600">{loginError}</div>
-                  ) : null}
-                  <button
-                    className={cn(
-                      "mt-3 w-full rounded-lg px-2 py-1.5 text-xs text-white",
-                      isLoginValid ? "bg-[#ef3124] hover:bg-[#dc2b20]" : "bg-[#f3b7b2] cursor-not-allowed"
-                    )}
-                    disabled={!isLoginValid}
-                    onClick={handleLoginSubmit}
-                  >
-                    {t("auth.confirmLogin")}
-                  </button>
-                </div>
-              ) : null}
             </div>
             <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#6b7280] shadow-sm">
               2026-01-15 15:24
@@ -1224,6 +1148,75 @@ function TopBar({
           </div>
         </div>
       </div>
+      {!isLoggedIn && loginOpen ? (
+        <div
+          className="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setLoginOpen(false)}
+        >
+          <div
+            className="modal-panel w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-[#111827]">{t("auth.login")}</div>
+              <button
+                className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                onClick={() => setLoginOpen(false)}
+              >
+                {t("auth.close")}
+              </button>
+            </div>
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="text-[11px] text-[#6b7280]">{t("auth.userId")}</div>
+                <input
+                  className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs text-[#111827] outline-none"
+                  placeholder={t("auth.userIdPlaceholder")}
+                  value={loginId}
+                  onChange={(e) => {
+                    setLoginId(e.target.value);
+                    setLoginError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleLoginSubmit();
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <div className="text-[11px] text-[#6b7280]">{t("auth.password")}</div>
+                <input
+                  className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs text-[#111827] outline-none"
+                  placeholder={t("auth.passwordPlaceholder")}
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => {
+                    setLoginPassword(e.target.value);
+                    setLoginError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleLoginSubmit();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            {loginError ? <div className="mt-2 text-[11px] text-rose-600">{loginError}</div> : null}
+            <button
+              className={cn(
+                "mt-4 w-full rounded-lg px-3 py-2 text-xs text-white",
+                isLoginValid ? "bg-[#ef3124] hover:bg-[#dc2b20]" : "bg-[#f3b7b2] cursor-not-allowed"
+              )}
+              disabled={!isLoginValid}
+              onClick={handleLoginSubmit}
+            >
+              {t("auth.confirmLogin")}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
