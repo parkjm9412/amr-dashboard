@@ -268,6 +268,7 @@ const I18N = {
     "admin.control": "조작 가능",
     "admin.download": "다운로드",
     "admin.noPermission": "권한 없음",
+    "admin.accountManagement": "계정 관리 메뉴",
     "admin.rolePermissionSuffix": "권한",
     "admin.save": "저장",
     "admin.saveHint": "변경 후 저장을 눌러야 적용됩니다.",
@@ -464,6 +465,7 @@ const I18N = {
     "admin.control": "Allow control",
     "admin.download": "Download",
     "admin.noPermission": "No access",
+    "admin.accountManagement": "Account management",
     "admin.rolePermissionSuffix": "Permissions",
     "admin.save": "Save",
     "admin.saveHint": "Changes apply after clicking Save.",
@@ -1669,7 +1671,7 @@ function AdminTab({
   const isAdmin = role === "admin";
   const [draftPermissions, setDraftPermissions] = useState<PermissionsConfig>(permissionsConfig);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const [accountListOpen, setAccountListOpen] = useState(true);
+  const [accountListOpen, setAccountListOpen] = useState(false);
   const [accountFilterQuery, setAccountFilterQuery] = useState("");
   const [accountRoleFilter, setAccountRoleFilter] = useState<
     "all" | Exclude<UserRole, "viewer">
@@ -1753,7 +1755,7 @@ function AdminTab({
   return (
     <div className="space-y-6">
       <Section
-        title={t("admin.accounts")}
+        title={t("admin.accountManagement")}
         right={
           <button
             className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -1765,7 +1767,6 @@ function AdminTab({
       >
         <div className="p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm text-[#374151]">{t("admin.accountHint")}</div>
             <button
               className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
               onClick={() => setAccountModalOpen(true)}
