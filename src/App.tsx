@@ -279,6 +279,10 @@ const I18N = {
     "admin.addAccount": "계정 추가",
     "admin.deleteAccount": "삭제",
     "admin.accountHint": "계정별 권한을 설정합니다.",
+    "admin.accountFilter": "필터",
+    "admin.accountFilterAll": "전체",
+    "admin.expand": "펼치기",
+    "admin.collapse": "접기",
     "admin.duplicateAccount": "이미 존재하는 계정 ID입니다.",
     "admin.logs": "로그",
     "admin.logFilter": "계정 필터",
@@ -471,6 +475,10 @@ const I18N = {
     "admin.addAccount": "Add account",
     "admin.deleteAccount": "Delete",
     "admin.accountHint": "Set permissions per account.",
+    "admin.accountFilter": "Filter",
+    "admin.accountFilterAll": "All",
+    "admin.expand": "Expand",
+    "admin.collapse": "Collapse",
     "admin.duplicateAccount": "Account ID already exists.",
     "admin.logs": "Logs",
     "admin.logFilter": "Account filter",
@@ -1661,6 +1669,11 @@ function AdminTab({
   const isAdmin = role === "admin";
   const [draftPermissions, setDraftPermissions] = useState<PermissionsConfig>(permissionsConfig);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountListOpen, setAccountListOpen] = useState(true);
+  const [accountFilterQuery, setAccountFilterQuery] = useState("");
+  const [accountRoleFilter, setAccountRoleFilter] = useState<
+    "all" | Exclude<UserRole, "viewer">
+  >("all");
   const [newAccountId, setNewAccountId] = useState("");
   const [newAccountPassword, setNewAccountPassword] = useState("");
   const [newAccountRole, setNewAccountRole] = useState<Exclude<UserRole, "viewer">>("operator");
@@ -1714,6 +1727,12 @@ function AdminTab({
   );
   const canAddAccount =
     newAccountId.trim().length > 0 && newAccountPassword.trim().length > 0 && !isAccountDuplicate;
+  const filteredAccounts = accounts.filter((account) => {
+    const query = accountFilterQuery.trim().toLowerCase();
+    const matchesQuery = query.length === 0 || account.id.toLowerCase().includes(query);
+    const matchesRole = accountRoleFilter === "all" || account.role === accountRoleFilter;
+    return matchesQuery && matchesRole;
+  });
 
   const updateAccount = (id: string, update: Partial<Account>) => {
     setAccounts((prev) =>
@@ -1733,6 +1752,20 @@ function AdminTab({
 
   return (
     <div className="space-y-6">
+      <Section title={t("admin.accounts")} right={t("admin.accountHint")}>
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-[#374151]">{t("admin.accountHint")}</div>
+            <button
+              className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
+              onClick={() => setAccountModalOpen(true)}
+            >
+              {t("admin.addAccount")}
+            </button>
+          </div>
+        </div>
+      </Section>
+
       <Section title={t("section.admin")} right={t("section.adminHint")}>
         <div className="p-4 space-y-4 text-sm text-[#374151]">
           {(["viewer", "operator"] as const).map((targetRole) => (
@@ -1809,35 +1842,52 @@ function AdminTab({
               {t("admin.save")}
             </button>
           </div>
-          <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold text-[#111827]">{t("admin.accounts")}</div>
-                <div className="text-xs text-[#6b7280]">{t("admin.accountHint")}</div>
-              </div>
-              <button
-                className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
-                onClick={() => setAccountModalOpen(true)}
-              >
-                {t("admin.addAccount")}
-              </button>
-            </div>
-          </div>
           <div className="text-xs text-[#6b7280]">
             {t("admin.note")}
           </div>
         </div>
       </Section>
 
-      <Section title={t("admin.accountList")}>
+      <Section
+        title={t("admin.accountList")}
+        right={
+          <button
+            className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+            onClick={() => setAccountListOpen((prev) => !prev)}
+          >
+            {accountListOpen ? t("admin.collapse") : t("admin.expand")}
+          </button>
+        }
+      >
         <div className="p-4 space-y-3">
-          <div className="space-y-2">
-            {accounts.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
+            <span>{t("admin.accountFilter")}</span>
+            <input
+              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+              placeholder={t("admin.accountId")}
+              value={accountFilterQuery}
+              onChange={(e) => setAccountFilterQuery(e.target.value)}
+            />
+            <select
+              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+              value={accountRoleFilter}
+              onChange={(e) =>
+                setAccountRoleFilter(e.target.value as "all" | Exclude<UserRole, "viewer">)
+              }
+            >
+              <option value="all">{t("admin.accountFilterAll")}</option>
+              <option value="operator">{ROLE_LABELS[locale].operator}</option>
+              <option value="admin">{ROLE_LABELS[locale].admin}</option>
+            </select>
+          </div>
+          {!accountListOpen ? null : (
+            <div className="space-y-2">
+              {filteredAccounts.length === 0 ? (
               <div className="text-center py-8 text-xs text-[#6b7280]">
                 {t("admin.noAccounts")}
               </div>
             ) : (
-              accounts.map((account) => (
+              filteredAccounts.map((account) => (
                 <div
                   key={account.id}
                   className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
@@ -1897,7 +1947,8 @@ function AdminTab({
                 </div>
               ))
             )}
-          </div>
+            </div>
+          )}
         </div>
       </Section>
 
