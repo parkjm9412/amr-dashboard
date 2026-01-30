@@ -278,6 +278,7 @@ const I18N = {
     "admin.addAccount": "계정 추가",
     "admin.deleteAccount": "삭제",
     "admin.accountHint": "계정별 권한을 설정합니다.",
+    "admin.duplicateAccount": "이미 존재하는 계정 ID입니다.",
     "admin.logs": "로그",
     "admin.logFilter": "계정 필터",
     "admin.logType": "유형",
@@ -467,6 +468,7 @@ const I18N = {
     "admin.addAccount": "Add account",
     "admin.deleteAccount": "Delete",
     "admin.accountHint": "Set permissions per account.",
+    "admin.duplicateAccount": "Account ID already exists.",
     "admin.logs": "Logs",
     "admin.logFilter": "Account filter",
     "admin.logType": "Type",
@@ -1654,6 +1656,7 @@ function AdminTab({
 }) {
   const isAdmin = role === "admin";
   const [draftPermissions, setDraftPermissions] = useState<PermissionsConfig>(permissionsConfig);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [newAccountId, setNewAccountId] = useState("");
   const [newAccountPassword, setNewAccountPassword] = useState("");
   const [newAccountRole, setNewAccountRole] = useState<Exclude<UserRole, "viewer">>("operator");
@@ -1671,6 +1674,19 @@ function AdminTab({
       }, {})
     );
   }, [accounts]);
+
+  useEffect(() => {
+    if (!accountModalOpen) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAccountModalOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [accountModalOpen]);
 
   const updateRolePermission = (
     targetRole: Exclude<UserRole, "admin">,
@@ -1790,53 +1806,14 @@ function AdminTab({
             </button>
           </div>
           <div className="rounded-lg border border-[#e5e7eb] bg-white p-4 space-y-3">
-            <div className="text-sm font-semibold text-[#111827]">{t("admin.accounts")}</div>
-            <div className="text-xs text-[#6b7280]">{t("admin.accountHint")}</div>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-              <input
-                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                placeholder={t("admin.accountId")}
-                value={newAccountId}
-                onChange={(e) => setNewAccountId(e.target.value)}
-              />
-              <input
-                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                placeholder={t("admin.accountPassword")}
-                type="password"
-                value={newAccountPassword}
-                onChange={(e) => setNewAccountPassword(e.target.value)}
-              />
-              <select
-                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                value={newAccountRole}
-                onChange={(e) => setNewAccountRole(e.target.value as Exclude<UserRole, "viewer">)}
-              >
-                <option value="operator">{ROLE_LABELS[locale].operator}</option>
-                <option value="admin">{ROLE_LABELS[locale].admin}</option>
-              </select>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-[#111827]">{t("admin.accounts")}</div>
+                <div className="text-xs text-[#6b7280]">{t("admin.accountHint")}</div>
+              </div>
               <button
-                className={cn(
-                  "rounded-lg px-2 py-1 text-xs text-white",
-                  canAddAccount ? "bg-[#ef3124] hover:bg-[#dc2b20]" : "bg-[#f3b7b2] cursor-not-allowed"
-                )}
-                disabled={!canAddAccount}
-                onClick={() => {
-                  if (!canAddAccount) {
-                    return;
-                  }
-                  setAccounts((prev) => [
-                    ...prev,
-                    { id: newAccountId.trim(), password: newAccountPassword, role: newAccountRole },
-                  ]);
-                  onLog({
-                    accountId: logActor,
-                    type: "action",
-                    message: `계정 추가 (${newAccountId.trim()} / ${newAccountRole})`,
-                  });
-                  setNewAccountId("");
-                  setNewAccountPassword("");
-                  setNewAccountRole("operator");
-                }}
+                className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
+                onClick={() => setAccountModalOpen(true)}
               >
                 {t("admin.addAccount")}
               </button>
@@ -1910,6 +1887,98 @@ function AdminTab({
           </div>
         </div>
       </Section>
+
+      {accountModalOpen ? (
+        <div
+          className="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setAccountModalOpen(false)}
+        >
+          <div
+            className="modal-panel w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-[#111827]">{t("admin.accounts")}</div>
+              <button
+                className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                onClick={() => setAccountModalOpen(false)}
+              >
+                {t("auth.close")}
+              </button>
+            </div>
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="text-[11px] text-[#6b7280]">{t("admin.accountId")}</div>
+                <input
+                  className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs text-[#111827] outline-none"
+                  placeholder={t("admin.accountId")}
+                  value={newAccountId}
+                  onChange={(e) => setNewAccountId(e.target.value)}
+                />
+              </div>
+              <div>
+                <div className="text-[11px] text-[#6b7280]">{t("admin.accountPassword")}</div>
+                <input
+                  className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs text-[#111827] outline-none"
+                  placeholder={t("admin.accountPassword")}
+                  type="password"
+                  value={newAccountPassword}
+                  onChange={(e) => setNewAccountPassword(e.target.value)}
+                />
+              </div>
+              <div>
+                <div className="text-[11px] text-[#6b7280]">{t("admin.accountRole")}</div>
+                <select
+                  className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs text-[#111827] outline-none"
+                  value={newAccountRole}
+                  onChange={(e) =>
+                    setNewAccountRole(e.target.value as Exclude<UserRole, "viewer">)
+                  }
+                >
+                  <option value="operator">{ROLE_LABELS[locale].operator}</option>
+                  <option value="admin">{ROLE_LABELS[locale].admin}</option>
+                </select>
+              </div>
+            </div>
+            {isAccountDuplicate ? (
+              <div className="mt-2 text-[11px] text-rose-600">
+                {t("admin.duplicateAccount")}
+              </div>
+            ) : null}
+            <button
+              className={cn(
+                "mt-4 w-full rounded-lg px-3 py-2 text-xs text-white",
+                canAddAccount
+                  ? "bg-[#ef3124] hover:bg-[#dc2b20]"
+                  : "bg-[#f3b7b2] cursor-not-allowed"
+              )}
+              disabled={!canAddAccount}
+              onClick={() => {
+                if (!canAddAccount) return;
+                setAccounts((prev) => [
+                  ...prev,
+                  {
+                    id: newAccountId.trim(),
+                    password: newAccountPassword,
+                    role: newAccountRole,
+                  },
+                ]);
+                onLog({
+                  accountId: logActor,
+                  type: "action",
+                  message: `계정 추가 (${newAccountId.trim()} / ${newAccountRole})`,
+                });
+                setNewAccountId("");
+                setNewAccountPassword("");
+                setNewAccountRole("operator");
+                setAccountModalOpen(false);
+              }}
+            >
+              {t("admin.addAccount")}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
