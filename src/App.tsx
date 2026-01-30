@@ -1752,9 +1752,19 @@ function AdminTab({
 
   return (
     <div className="space-y-6">
-      <Section title={t("admin.accounts")} right={t("admin.accountHint")}>
-        <div className="p-4">
-          <div className="flex items-center justify-between">
+      <Section
+        title={t("admin.accounts")}
+        right={
+          <button
+            className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+            onClick={() => setAccountListOpen((prev) => !prev)}
+          >
+            {accountListOpen ? t("admin.collapse") : t("admin.expand")}
+          </button>
+        }
+      >
+        <div className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
             <div className="text-sm text-[#374151]">{t("admin.accountHint")}</div>
             <button
               className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
@@ -1763,6 +1773,95 @@ function AdminTab({
               {t("admin.addAccount")}
             </button>
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
+            <span>{t("admin.accountFilter")}</span>
+            <input
+              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+              placeholder={t("admin.accountId")}
+              value={accountFilterQuery}
+              onChange={(e) => setAccountFilterQuery(e.target.value)}
+            />
+            <select
+              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+              value={accountRoleFilter}
+              onChange={(e) =>
+                setAccountRoleFilter(e.target.value as "all" | Exclude<UserRole, "viewer">)
+              }
+            >
+              <option value="all">{t("admin.accountFilterAll")}</option>
+              <option value="operator">{ROLE_LABELS[locale].operator}</option>
+              <option value="admin">{ROLE_LABELS[locale].admin}</option>
+            </select>
+          </div>
+          {!accountListOpen ? null : (
+            <div className="space-y-2">
+              {filteredAccounts.length === 0 ? (
+                <div className="text-center py-8 text-xs text-[#6b7280]">
+                  {t("admin.noAccounts")}
+                </div>
+              ) : (
+                filteredAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
+                  >
+                    <div className="text-[#111827]">{account.id}</div>
+                    <input
+                      className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                      type="password"
+                      value={passwordDrafts[account.id] ?? account.password}
+                      onChange={(e) =>
+                        setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
+                      }
+                      onBlur={() => {
+                        const nextPassword = (passwordDrafts[account.id] ?? "").trim();
+                        if (!nextPassword || nextPassword === account.password) {
+                          return;
+                        }
+                        updateAccount(account.id, { password: nextPassword });
+                        onLog({
+                          accountId: logActor,
+                          type: "action",
+                          message: `비밀번호 변경 (${account.id})`,
+                        });
+                      }}
+                    />
+                    <select
+                      className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                      value={account.role}
+                      onChange={(e) => {
+                        const nextRole = e.target.value as Exclude<UserRole, "viewer">;
+                        updateAccount(account.id, { role: nextRole });
+                        onLog({
+                          accountId: logActor,
+                          type: "action",
+                          message: `권한 변경 (${account.id} → ${nextRole})`,
+                        });
+                      }}
+                    >
+                      <option value="operator">{ROLE_LABELS[locale].operator}</option>
+                      <option value="admin">{ROLE_LABELS[locale].admin}</option>
+                    </select>
+                    <div className="flex justify-end">
+                      <button
+                        className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                        onClick={() => {
+                          removeAccount(account.id);
+                          onLog({
+                            accountId: logActor,
+                            type: "action",
+                            message: `계정 삭제 (${account.id})`,
+                          });
+                        }}
+                      >
+                        {t("admin.deleteAccount")}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </Section>
 
@@ -1848,109 +1947,6 @@ function AdminTab({
         </div>
       </Section>
 
-      <Section
-        title={t("admin.accountList")}
-        right={
-          <button
-            className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-            onClick={() => setAccountListOpen((prev) => !prev)}
-          >
-            {accountListOpen ? t("admin.collapse") : t("admin.expand")}
-          </button>
-        }
-      >
-        <div className="p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
-            <span>{t("admin.accountFilter")}</span>
-            <input
-              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-              placeholder={t("admin.accountId")}
-              value={accountFilterQuery}
-              onChange={(e) => setAccountFilterQuery(e.target.value)}
-            />
-            <select
-              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-              value={accountRoleFilter}
-              onChange={(e) =>
-                setAccountRoleFilter(e.target.value as "all" | Exclude<UserRole, "viewer">)
-              }
-            >
-              <option value="all">{t("admin.accountFilterAll")}</option>
-              <option value="operator">{ROLE_LABELS[locale].operator}</option>
-              <option value="admin">{ROLE_LABELS[locale].admin}</option>
-            </select>
-          </div>
-          {!accountListOpen ? null : (
-            <div className="space-y-2">
-              {filteredAccounts.length === 0 ? (
-              <div className="text-center py-8 text-xs text-[#6b7280]">
-                {t("admin.noAccounts")}
-              </div>
-            ) : (
-              filteredAccounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
-                >
-                  <div className="text-[#111827]">{account.id}</div>
-                  <input
-                    className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                    type="password"
-                    value={passwordDrafts[account.id] ?? account.password}
-                    onChange={(e) =>
-                      setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
-                    }
-                    onBlur={() => {
-                      const nextPassword = (passwordDrafts[account.id] ?? "").trim();
-                      if (!nextPassword || nextPassword === account.password) {
-                        return;
-                      }
-                      updateAccount(account.id, { password: nextPassword });
-                      onLog({
-                        accountId: logActor,
-                        type: "action",
-                        message: `비밀번호 변경 (${account.id})`,
-                      });
-                    }}
-                  />
-                  <select
-                    className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                    value={account.role}
-                    onChange={(e) => {
-                      const nextRole = e.target.value as Exclude<UserRole, "viewer">;
-                      updateAccount(account.id, { role: nextRole });
-                      onLog({
-                        accountId: logActor,
-                        type: "action",
-                        message: `권한 변경 (${account.id} → ${nextRole})`,
-                      });
-                    }}
-                  >
-                    <option value="operator">{ROLE_LABELS[locale].operator}</option>
-                    <option value="admin">{ROLE_LABELS[locale].admin}</option>
-                  </select>
-                  <div className="flex justify-end">
-                    <button
-                      className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-                      onClick={() => {
-                        removeAccount(account.id);
-                        onLog({
-                          accountId: logActor,
-                          type: "action",
-                          message: `계정 삭제 (${account.id})`,
-                        });
-                      }}
-                    >
-                      {t("admin.deleteAccount")}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-            </div>
-          )}
-        </div>
-      </Section>
 
       {accountModalOpen ? (
         <div
