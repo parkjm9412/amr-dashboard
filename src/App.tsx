@@ -1769,25 +1769,23 @@ function AdminTab({
 
   return (
     <div className="space-y-6">
-      <Section
-        title={t("admin.accountManagement")}
-        right={
-          <button
-            className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-            onClick={() => setAccountListModalOpen(true)}
-          >
-            {t("admin.viewAccountList")}
-          </button>
-        }
-      >
+      <Section title={t("admin.accountManagement")}>
         <div className="p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <button
-              className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
-              onClick={() => setAccountModalOpen(true)}
-            >
-              {t("admin.addAccount")}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-lg px-3 py-2 text-xs text-white bg-[#ef3124] hover:bg-[#dc2b20]"
+                onClick={() => setAccountModalOpen(true)}
+              >
+                {t("admin.addAccount")}
+              </button>
+              <button
+                className="rounded-lg px-3 py-2 text-xs text-[#374151] border border-[#e5e7eb] hover:bg-[#f3f4f6]"
+                onClick={() => setAccountListModalOpen(true)}
+              >
+                {t("admin.viewAccountList")}
+              </button>
+            </div>
           </div>
         </div>
       </Section>
