@@ -284,6 +284,7 @@ const I18N = {
     "admin.accountFilterAll": "전체",
     "admin.expand": "펼치기",
     "admin.collapse": "접기",
+    "admin.viewAccountList": "계정 리스트",
     "admin.duplicateAccount": "이미 존재하는 계정 ID입니다.",
     "admin.logs": "로그",
     "admin.logFilter": "계정 필터",
@@ -481,6 +482,7 @@ const I18N = {
     "admin.accountFilterAll": "All",
     "admin.expand": "Expand",
     "admin.collapse": "Collapse",
+    "admin.viewAccountList": "Account list",
     "admin.duplicateAccount": "Account ID already exists.",
     "admin.logs": "Logs",
     "admin.logFilter": "Account filter",
@@ -1671,7 +1673,7 @@ function AdminTab({
   const isAdmin = role === "admin";
   const [draftPermissions, setDraftPermissions] = useState<PermissionsConfig>(permissionsConfig);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const [accountListOpen, setAccountListOpen] = useState(false);
+  const [accountListModalOpen, setAccountListModalOpen] = useState(false);
   const [accountFilterQuery, setAccountFilterQuery] = useState("");
   const [accountRoleFilter, setAccountRoleFilter] = useState<
     "all" | Exclude<UserRole, "viewer">
@@ -1706,6 +1708,19 @@ function AdminTab({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [accountModalOpen]);
+
+  useEffect(() => {
+    if (!accountListModalOpen) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAccountListModalOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [accountListModalOpen]);
 
   const updateRolePermission = (
     targetRole: Exclude<UserRole, "admin">,
@@ -1759,9 +1774,9 @@ function AdminTab({
         right={
           <button
             className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-            onClick={() => setAccountListOpen((prev) => !prev)}
+            onClick={() => setAccountListModalOpen(true)}
           >
-            {accountListOpen ? t("admin.collapse") : t("admin.expand")}
+            {t("admin.viewAccountList")}
           </button>
         }
       >
@@ -1774,95 +1789,6 @@ function AdminTab({
               {t("admin.addAccount")}
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
-            <span>{t("admin.accountFilter")}</span>
-            <input
-              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-              placeholder={t("admin.accountId")}
-              value={accountFilterQuery}
-              onChange={(e) => setAccountFilterQuery(e.target.value)}
-            />
-            <select
-              className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-              value={accountRoleFilter}
-              onChange={(e) =>
-                setAccountRoleFilter(e.target.value as "all" | Exclude<UserRole, "viewer">)
-              }
-            >
-              <option value="all">{t("admin.accountFilterAll")}</option>
-              <option value="operator">{ROLE_LABELS[locale].operator}</option>
-              <option value="admin">{ROLE_LABELS[locale].admin}</option>
-            </select>
-          </div>
-          {!accountListOpen ? null : (
-            <div className="space-y-2">
-              {filteredAccounts.length === 0 ? (
-                <div className="text-center py-8 text-xs text-[#6b7280]">
-                  {t("admin.noAccounts")}
-                </div>
-              ) : (
-                filteredAccounts.map((account) => (
-                  <div
-                    key={account.id}
-                    className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
-                  >
-                    <div className="text-[#111827]">{account.id}</div>
-                    <input
-                      className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                      type="password"
-                      value={passwordDrafts[account.id] ?? account.password}
-                      onChange={(e) =>
-                        setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
-                      }
-                      onBlur={() => {
-                        const nextPassword = (passwordDrafts[account.id] ?? "").trim();
-                        if (!nextPassword || nextPassword === account.password) {
-                          return;
-                        }
-                        updateAccount(account.id, { password: nextPassword });
-                        onLog({
-                          accountId: logActor,
-                          type: "action",
-                          message: `비밀번호 변경 (${account.id})`,
-                        });
-                      }}
-                    />
-                    <select
-                      className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
-                      value={account.role}
-                      onChange={(e) => {
-                        const nextRole = e.target.value as Exclude<UserRole, "viewer">;
-                        updateAccount(account.id, { role: nextRole });
-                        onLog({
-                          accountId: logActor,
-                          type: "action",
-                          message: `권한 변경 (${account.id} → ${nextRole})`,
-                        });
-                      }}
-                    >
-                      <option value="operator">{ROLE_LABELS[locale].operator}</option>
-                      <option value="admin">{ROLE_LABELS[locale].admin}</option>
-                    </select>
-                    <div className="flex justify-end">
-                      <button
-                        className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-                        onClick={() => {
-                          removeAccount(account.id);
-                          onLog({
-                            accountId: logActor,
-                            type: "action",
-                            message: `계정 삭제 (${account.id})`,
-                          });
-                        }}
-                      >
-                        {t("admin.deleteAccount")}
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
         </div>
       </Section>
 
@@ -2037,6 +1963,114 @@ function AdminTab({
             >
               {t("admin.addAccount")}
             </button>
+          </div>
+        </div>
+      ) : null}
+      {accountListModalOpen ? (
+        <div
+          className="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setAccountListModalOpen(false)}
+        >
+          <div
+            className="modal-panel w-full max-w-2xl rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-[#111827]">{t("admin.accountList")}</div>
+              <button
+                className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                onClick={() => setAccountListModalOpen(false)}
+              >
+                {t("auth.close")}
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
+              <span>{t("admin.accountFilter")}</span>
+              <input
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                placeholder={t("admin.accountId")}
+                value={accountFilterQuery}
+                onChange={(e) => setAccountFilterQuery(e.target.value)}
+              />
+              <select
+                className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                value={accountRoleFilter}
+                onChange={(e) =>
+                  setAccountRoleFilter(e.target.value as "all" | Exclude<UserRole, "viewer">)
+                }
+              >
+                <option value="all">{t("admin.accountFilterAll")}</option>
+                <option value="operator">{ROLE_LABELS[locale].operator}</option>
+                <option value="admin">{ROLE_LABELS[locale].admin}</option>
+              </select>
+            </div>
+            <div className="mt-3 max-h-[60vh] space-y-2 overflow-auto">
+              {filteredAccounts.length === 0 ? (
+                <div className="text-center py-10 text-xs text-[#6b7280]">
+                  {t("admin.noAccounts")}
+                </div>
+              ) : (
+                filteredAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
+                  >
+                    <div className="text-[#111827]">{account.id}</div>
+                    <input
+                      className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                      type="password"
+                      value={passwordDrafts[account.id] ?? account.password}
+                      onChange={(e) =>
+                        setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
+                      }
+                      onBlur={() => {
+                        const nextPassword = (passwordDrafts[account.id] ?? "").trim();
+                        if (!nextPassword || nextPassword === account.password) {
+                          return;
+                        }
+                        updateAccount(account.id, { password: nextPassword });
+                        onLog({
+                          accountId: logActor,
+                          type: "action",
+                          message: `비밀번호 변경 (${account.id})`,
+                        });
+                      }}
+                    />
+                    <select
+                      className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
+                      value={account.role}
+                      onChange={(e) => {
+                        const nextRole = e.target.value as Exclude<UserRole, "viewer">;
+                        updateAccount(account.id, { role: nextRole });
+                        onLog({
+                          accountId: logActor,
+                          type: "action",
+                          message: `권한 변경 (${account.id} → ${nextRole})`,
+                        });
+                      }}
+                    >
+                      <option value="operator">{ROLE_LABELS[locale].operator}</option>
+                      <option value="admin">{ROLE_LABELS[locale].admin}</option>
+                    </select>
+                    <div className="flex justify-end">
+                      <button
+                        className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                        onClick={() => {
+                          removeAccount(account.id);
+                          onLog({
+                            accountId: logActor,
+                            type: "action",
+                            message: `계정 삭제 (${account.id})`,
+                          });
+                        }}
+                      >
+                        {t("admin.deleteAccount")}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : null}
