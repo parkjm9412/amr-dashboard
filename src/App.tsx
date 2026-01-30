@@ -272,6 +272,7 @@ const I18N = {
     "admin.save": "저장",
     "admin.saveHint": "변경 후 저장을 눌러야 적용됩니다.",
     "admin.accounts": "계정 등록",
+    "admin.accountList": "계정 목록",
     "admin.accountId": "계정 ID",
     "admin.accountPassword": "비밀번호",
     "admin.accountRole": "권한",
@@ -463,6 +464,7 @@ const I18N = {
     "admin.save": "Save",
     "admin.saveHint": "Changes apply after clicking Save.",
     "admin.accounts": "Account registration",
+    "admin.accountList": "Account list",
     "admin.accountId": "Account ID",
     "admin.accountPassword": "Password",
     "admin.accountRole": "Role",
@@ -1827,7 +1829,7 @@ function AdminTab({
         </div>
       </Section>
 
-      <Section title={t("admin.accounts")}>
+      <Section title={t("admin.accountList")}>
         <div className="p-4 space-y-3">
           <div className="space-y-2">
             {accounts.length === 0 ? (
