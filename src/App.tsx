@@ -290,6 +290,7 @@ const I18N = {
     "admin.logTypeLogin": "로그인",
     "admin.logTypeAction": "작업",
     "admin.logEmpty": "로그가 없습니다.",
+    "admin.noAccounts": "등록된 계정이 없습니다.",
     "admin.note": "관리자 권한은 고정이며, 변경 사항은 브라우저에 저장됩니다.",
     "metric.uptime": "가동률",
     "metric.uptimeSub": "최근 24시간 평균",
@@ -480,6 +481,7 @@ const I18N = {
     "admin.logTypeLogin": "Login",
     "admin.logTypeAction": "Action",
     "admin.logEmpty": "No logs available.",
+    "admin.noAccounts": "No accounts registered.",
     "control.sendDestination": "Send destination",
     "control.manual": "Manual control",
     "control.forward": "Forward",
@@ -1805,7 +1807,7 @@ function AdminTab({
               {t("admin.save")}
             </button>
           </div>
-          <div className="rounded-lg border border-[#e5e7eb] bg-white p-4 space-y-3">
+          <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-[#111827]">{t("admin.accounts")}</div>
@@ -1818,8 +1820,22 @@ function AdminTab({
                 {t("admin.addAccount")}
               </button>
             </div>
-            <div className="space-y-2">
-              {accounts.map((account) => (
+          </div>
+          <div className="text-xs text-[#6b7280]">
+            {t("admin.note")}
+          </div>
+        </div>
+      </Section>
+
+      <Section title={t("admin.accounts")}>
+        <div className="p-4 space-y-3">
+          <div className="space-y-2">
+            {accounts.length === 0 ? (
+              <div className="text-center py-8 text-xs text-[#6b7280]">
+                {t("admin.noAccounts")}
+              </div>
+            ) : (
+              accounts.map((account) => (
                 <div
                   key={account.id}
                   className="grid grid-cols-1 gap-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs md:grid-cols-4 md:items-center"
@@ -1828,37 +1844,35 @@ function AdminTab({
                   <input
                     className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
                     type="password"
-                      value={passwordDrafts[account.id] ?? account.password}
-                      onChange={(e) =>
-                        setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
+                    value={passwordDrafts[account.id] ?? account.password}
+                    onChange={(e) =>
+                      setPasswordDrafts((prev) => ({ ...prev, [account.id]: e.target.value }))
+                    }
+                    onBlur={() => {
+                      const nextPassword = (passwordDrafts[account.id] ?? "").trim();
+                      if (!nextPassword || nextPassword === account.password) {
+                        return;
                       }
-                      onBlur={() => {
-                        const nextPassword = (passwordDrafts[account.id] ?? "").trim();
-                        if (!nextPassword || nextPassword === account.password) {
-                          return;
-                        }
-                        updateAccount(account.id, { password: nextPassword });
-                        onLog({
-                          accountId: logActor,
-                          type: "action",
-                          message: `비밀번호 변경 (${account.id})`,
-                        });
-                      }}
+                      updateAccount(account.id, { password: nextPassword });
+                      onLog({
+                        accountId: logActor,
+                        type: "action",
+                        message: `비밀번호 변경 (${account.id})`,
+                      });
+                    }}
                   />
                   <select
                     className="rounded-lg border border-[#e5e7eb] px-2 py-1 text-xs text-[#111827] outline-none"
                     value={account.role}
-                    onChange={(e) =>
-                        {
-                          const nextRole = e.target.value as Exclude<UserRole, "viewer">;
-                          updateAccount(account.id, { role: nextRole });
-                          onLog({
-                            accountId: logActor,
-                            type: "action",
-                            message: `권한 변경 (${account.id} → ${nextRole})`,
-                          });
-                        }
-                    }
+                    onChange={(e) => {
+                      const nextRole = e.target.value as Exclude<UserRole, "viewer">;
+                      updateAccount(account.id, { role: nextRole });
+                      onLog({
+                        accountId: logActor,
+                        type: "action",
+                        message: `권한 변경 (${account.id} → ${nextRole})`,
+                      });
+                    }}
                   >
                     <option value="operator">{ROLE_LABELS[locale].operator}</option>
                     <option value="admin">{ROLE_LABELS[locale].admin}</option>
@@ -1866,24 +1880,21 @@ function AdminTab({
                   <div className="flex justify-end">
                     <button
                       className="rounded-md px-2 py-1 text-[11px] text-[#6b7280] hover:bg-[#f3f4f6]"
-                        onClick={() => {
-                          removeAccount(account.id);
-                          onLog({
-                            accountId: logActor,
-                            type: "action",
-                            message: `계정 삭제 (${account.id})`,
-                          });
-                        }}
+                      onClick={() => {
+                        removeAccount(account.id);
+                        onLog({
+                          accountId: logActor,
+                          type: "action",
+                          message: `계정 삭제 (${account.id})`,
+                        });
+                      }}
                     >
                       {t("admin.deleteAccount")}
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-          <div className="text-xs text-[#6b7280]">
-            {t("admin.note")}
+              ))
+            )}
           </div>
         </div>
       </Section>
